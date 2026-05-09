@@ -13,7 +13,8 @@
       "Bash(dotnet sln *)",
       "Read(//mnt/**)",
       "Read(//e//**)",
-      "PowerShell(Get-ChildItem \"C:\\\\\", \"$env:LOCALAPPDATA\", \"$env:PROGRAMFILES\" -Recurse -Filter \"dotnet.exe\" -ErrorAction SilentlyContinue -Depth 3 | Select-Object -First 3 FullName)"
+      "PowerShell(Get-ChildItem \"C:\\\\\", \"$env:LOCALAPPDATA\", \"$env:PROGRAMFILES\" -Recurse -Filter \"dotnet.exe\" -ErrorAction SilentlyContinue -Depth 3 | Select-Object -First 3 FullName)",
+      "PowerShell(winget install --id Microsoft.DotNet.SDK.10 --silent --accept-package-agreements --accept-source-agreements 2>&1)"
     ]
   }
 }

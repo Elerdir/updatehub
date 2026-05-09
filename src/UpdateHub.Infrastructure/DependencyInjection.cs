@@ -29,7 +29,6 @@ public static class DependencyInjection
         services.AddScoped<AdminService>();
         services.AddScoped<UpdateResolverService>(sp => new UpdateResolverService(
             sp.GetRequiredService<IReleaseRepository>(),
-            sp.GetRequiredService<IArtifactRepository>(),
             baseUrl));
 
         return services;

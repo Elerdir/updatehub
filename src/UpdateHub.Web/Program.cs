@@ -8,8 +8,10 @@ using UpdateHub.Web.Endpoints;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddRazorComponents()
-    .AddInteractiveServerComponents(options =>
-        options.MaximumReceiveMessageSize = 512 * 1024 * 1024);
+    .AddInteractiveServerComponents();
+
+// Allow large file uploads (installers can be 500 MB+) via Blazor SignalR
+builder.Services.AddSignalR(o => o.MaximumReceiveMessageSize = 512 * 1024 * 1024);
 
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
     .AddCookie(options =>
@@ -70,7 +72,7 @@ app.MapPost("/account/logout", async (HttpContext ctx) =>
     ctx.Response.Redirect("/login");
 }).DisableAntiforgery();
 
-app.MapRazorComponents<App>()
+app.MapRazorComponents<AppShell>()
     .AddInteractiveServerRenderMode();
 
 app.Run();

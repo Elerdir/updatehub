@@ -7,7 +7,6 @@ namespace UpdateHub.Application.Services;
 
 public class UpdateResolverService(
     IReleaseRepository releases,
-    IArtifactRepository artifacts,
     string baseUrl)
 {
     public async Task<TauriManifest?> GetTauriManifestAsync(string appSlug, string? channel)
