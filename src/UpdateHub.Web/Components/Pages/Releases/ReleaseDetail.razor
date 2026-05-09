@@ -2,7 +2,6 @@
 @attribute [Authorize]
 @rendermode InteractiveServer
 @inject AdminService AdminSvc
-@inject ArtifactStorageService Storage
 @inject NavigationManager Nav
 
 <PageTitle>Release @(release?.Version ?? "") — UpdateHub</PageTitle>
@@ -172,7 +171,7 @@ else
             await using var stream = selectedFile.OpenReadStream(maxAllowedSize: maxSize);
             await AdminSvc.AddArtifactAsync(
                 release.Id, uploadPlatform, uploadArch,
-                stream, selectedFile.Name, uploadSignature, Storage);
+                stream, selectedFile.Name, uploadSignature);
             selectedFile = null;
             uploadSignature = null;
             await Load();
@@ -200,7 +199,7 @@ else
 
     private async Task DeleteArtifact(Guid id)
     {
-        await AdminSvc.DeleteArtifactAsync(id, Storage);
+        await AdminSvc.DeleteArtifactAsync(id);
         await Load();
     }
 

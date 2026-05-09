@@ -1,151 +1,141 @@
 # Architecture
 
-## Overview
-
-UpdateHub is a single ASP.NET Core 10 application with Blazor Server for the admin UI and Minimal API for the public/CI endpoints. It uses SQLite for the database and local filesystem for artifact storage.
+UpdateHub follows **Clean Architecture** — dependencies point inward, inner layers know nothing about outer layers.
 
 ```
-┌─────────────────────────────────────────┐
-│              UpdateHub.Web              │
-│                                         │
-│  ┌─────────────┐   ┌─────────────────┐  │
-│  │  Blazor UI  │   │   Minimal API   │  │
-│  │  (admin)    │   │  (public + CI)  │  │
-│  └──────┬──────┘   └────────┬────────┘  │
-│         │                   │           │
-│  ┌──────▼───────────────────▼────────┐  │
-│  │           Services                │  │
-│  │  AdminService / UpdateResolver /  │  │
-│  │  ArtifactStorageService           │  │
-│  └──────────────────┬────────────────┘  │
-│                     │                   │
-│  ┌──────────────────▼────────────────┐  │
-│  │  AppDbContext (EF Core + SQLite)   │  │
-│  └───────────────────────────────────┘  │
-└─────────────────────────────────────────┘
-         │                    │
-    updatehub.db         artifacts/
-    (SQLite)             (files on disk)
+┌─────────────────────────────────────────────────────┐
+│                   UpdateHub.Web                      │
+│          (Blazor Server + Minimal API)               │
+│                                                      │
+│  ┌───────────────────────────────────────────────┐   │
+│  │            UpdateHub.Infrastructure           │   │
+│  │     (EF Core, SQLite, LocalArtifactStorage)   │   │
+│  │                                               │   │
+│  │  ┌─────────────────────────────────────────┐  │   │
+│  │  │         UpdateHub.Application           │  │   │
+│  │  │  (Services, Interfaces, Models/DTOs)    │  │   │
+│  │  │                                         │  │   │
+│  │  │  ┌───────────────────────────────────┐  │  │   │
+│  │  │  │       UpdateHub.Domain            │  │  │   │
+│  │  │  │  (Entities, Enums — no deps)      │  │  │   │
+│  │  │  └───────────────────────────────────┘  │  │   │
+│  │  └─────────────────────────────────────────┘  │   │
+│  └───────────────────────────────────────────────┘   │
+└─────────────────────────────────────────────────────┘
 ```
 
-## Project Structure
+## Projects & responsibilities
+
+### UpdateHub.Domain
+Pure C# — no NuGet dependencies.
 
 ```
-src/UpdateHub.Web/
-├── Program.cs                    — App bootstrap, DI, auth, endpoint registration
-├── Data/
-│   ├── AppDbContext.cs           — EF Core DbContext
-│   └── Entities/
-│       ├── App.cs                — Registered application
-│       ├── Release.cs            — Version release
-│       ├── Artifact.cs           — Installer/binary file
-│       └── Enums.cs              — ReleaseChannel, ReleaseStatus
+Domain/
+├── Entities/
+│   ├── App.cs          — registered application
+│   ├── Release.cs      — versioned release (Draft/Published/Archived)
+│   └── Artifact.cs     — installer binary with SHA-256 + optional Tauri sig
+└── Enums/
+    ├── ReleaseChannel.cs   — Stable / Beta / Alpha
+    └── ReleaseStatus.cs    — Draft / Published / Archived
+```
+
+### UpdateHub.Application
+Business logic. Depends only on Domain.
+
+```
+Application/
+├── Interfaces/
+│   ├── IAppRepository.cs
+│   ├── IReleaseRepository.cs
+│   ├── IArtifactRepository.cs
+│   └── IArtifactStorage.cs      — file storage abstraction
 ├── Services/
-│   ├── AdminService.cs           — CRUD operations for admin UI
-│   ├── UpdateResolverService.cs  — Update check logic (Tauri + generic)
-│   └── ArtifactStorageService.cs — File storage + SHA-256 hashing
+│   ├── AdminService.cs          — all admin CRUD operations
+│   └── UpdateResolverService.cs — update check + Tauri manifest logic
+└── Models/
+    ├── UpdateCheckResult.cs
+    └── TauriManifest.cs
+```
+
+Application services depend **only on interfaces** — they never know about EF Core or the filesystem. This makes them fully testable without a database.
+
+### UpdateHub.Infrastructure
+Implements Application interfaces using concrete technology.
+
+```
+Infrastructure/
+├── Persistence/
+│   ├── AppDbContext.cs                      — EF Core DbContext (SQLite)
+│   └── Repositories/
+│       ├── AppRepository.cs
+│       ├── ReleaseRepository.cs
+│       └── ArtifactRepository.cs
+├── Storage/
+│   └── LocalArtifactStorage.cs             — filesystem implementation of IArtifactStorage
+└── DependencyInjection.cs                  — AddInfrastructure() extension method
+```
+
+### UpdateHub.Web
+Presentation layer — registers DI, exposes HTTP endpoints, hosts Blazor UI.
+
+```
+Web/
+├── Program.cs                              — bootstrap + auth endpoints
 ├── Endpoints/
-│   ├── PublicEndpoints.cs        — GET update, GET tauri manifest, GET download
-│   └── CiEndpoints.cs            — POST upload from CI/CD
+│   ├── PublicEndpoints.cs                  — GET update, GET tauri, GET download
+│   └── CiEndpoints.cs                      — POST upload from CI/CD
 └── Components/
-    ├── App.razor / Routes.razor  — Blazor root
-    ├── Layout/
-    │   ├── MainLayout.razor      — Sidebar + content wrapper
-    │   ├── NavMenu.razor         — Navigation
-    │   └── EmptyLayout.razor     — Used for Login page
-    └── Pages/
-        ├── Login.razor
-        ├── Dashboard.razor
-        ├── Apps/
-        │   ├── AppsList.razor    — List + create apps
-        │   └── AppDetail.razor   — App info + release list
-        └── Releases/
-            └── ReleaseDetail.razor — Artifacts, publish/archive
+    ├── Pages/
+    │   ├── Login.razor
+    │   ├── Dashboard.razor
+    │   ├── Apps/AppsList.razor + AppDetail.razor
+    │   └── Releases/ReleaseDetail.razor
+    └── Layout/
+        ├── MainLayout.razor + NavMenu.razor
+        └── EmptyLayout.razor               — used by Login (no sidebar)
 ```
 
-## Data Model
+Web pages inject **Application services only** (`AdminService`, `UpdateResolverService`). They are unaware of EF Core or the filesystem.
+
+## Dependency graph
 
 ```
-App
-├── Id (Guid PK)
-├── Slug (string, unique)       — used in API URLs
-├── Name (string)
-├── Description (string?)
-├── CreatedAt (DateTime)
-└── Releases []
-
-Release
-├── Id (Guid PK)
-├── AppId (Guid FK → App)
-├── Version (string)            — semver, e.g. "1.2.3"
-├── Channel (enum)              — Stable / Beta / Alpha
-├── Status (enum)               — Draft / Published / Archived
-├── ReleaseNotes (string?)
-├── IsMandatory (bool)
-├── PublishedAt (DateTime?)
-├── CreatedAt (DateTime)
-└── Artifacts []
-
-Artifact
-├── Id (Guid PK)
-├── ReleaseId (Guid FK → Release)
-├── Platform (string)           — windows / macos / linux
-├── Architecture (string)       — x64 / arm64 / x86
-├── FileName (string)
-├── StoredPath (string)         — absolute path on disk
-├── Sha256 (string)             — hex string
-├── Signature (string?)         — Tauri Ed25519 signature
-├── FileSizeBytes (long)
-└── CreatedAt (DateTime)
+Web  →  Application  →  Domain
+Web  →  Infrastructure  →  Application  →  Domain
 ```
 
-## Authentication
+Web references Infrastructure only in `Program.cs` to call `AddInfrastructure()`.
 
-Admin UI uses cookie-based authentication. Credentials are stored in configuration (not the DB) — a single admin user with a bcrypt-hashed password.
-
-Public API endpoints have no authentication.
-
-CI/CD endpoint uses a static bearer token (`X-UpdateHub-Token` header).
-
-## Update Resolution Logic
-
-`UpdateResolverService.CheckUpdateAsync`:
-1. Find the latest **Published** release for the given app + channel
-2. Compare versions using `System.Version` (semver-like parsing)
-3. Find a matching artifact for the requested platform + architecture
-4. Return the result with a download URL
-
-`UpdateResolverService.GetTauriManifestAsync`:
-1. Same as above, but formats the response in Tauri's expected JSON shape
-2. Maps platform/arch to Tauri platform keys (e.g. `windows-x86_64`)
-3. Only includes artifacts that have a Tauri signature
-
-## Release Workflow
+## Data model
 
 ```
-CI upload  →  Draft  →  [admin reviews]  →  Published  →  Archived
-                              ↑
-                    Upload more artifacts
-                    (e.g. macOS, Linux builds)
+App ──< Release ──< Artifact
 ```
 
-A Draft release can accumulate multiple artifacts (one per platform/arch) before being published. Once published, clients will start receiving it.
+| Entity | Key fields |
+|---|---|
+| App | Slug (unique), Name, Description |
+| Release | Version, Channel, Status, IsMandatory, PublishedAt |
+| Artifact | Platform, Architecture, FileName, StoredPath, Sha256, Signature |
 
-## Storage
+## Update flow
 
-Artifacts are stored at:
 ```
-{StoragePath}/{appSlug}/{version}/{filename}
+1. App queries  GET /api/apps/{slug}/update?version=1.0.0&platform=windows&arch=x64
+2. UpdateResolverService finds latest Published release for the channel
+3. Compares versions (System.Version parsing, semver-like)
+4. Returns has_update + download URL if a matching artifact exists
 ```
 
-SHA-256 is computed during upload and stored in the database. The download endpoint streams the file directly.
+## Release workflow
 
-For production, the storage path should be a persistent volume (see Dockerfile).
+```
+CI upload → Draft ──[publish in admin UI]──→ Published ──[archive]──→ Archived
+               ↑
+         (add more artifacts per platform before publishing)
+```
 
-## Scalability Notes
+## Extending storage
 
-This is intentionally a simple personal-use tool. For the intended use case (handful of apps, small user base), SQLite + local filesystem is perfectly adequate.
-
-If you ever need to scale:
-- Replace SQLite with PostgreSQL (change the EF Core provider + connection string)
-- Replace local storage with S3/MinIO (implement an `IArtifactStorage` interface)
+To replace local filesystem with S3/MinIO, implement `IArtifactStorage` in Infrastructure and swap the registration in `DependencyInjection.cs`. No other code needs to change.

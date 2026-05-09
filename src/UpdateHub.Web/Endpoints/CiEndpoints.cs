@@ -1,7 +1,7 @@
-using Microsoft.EntityFrameworkCore;
-using UpdateHub.Web.Data;
-using UpdateHub.Web.Data.Entities;
-using UpdateHub.Web.Services;
+using UpdateHub.Application.Interfaces;
+using UpdateHub.Application.Services;
+using UpdateHub.Domain.Entities;
+using UpdateHub.Domain.Enums;
 
 namespace UpdateHub.Web.Endpoints;
 
@@ -9,12 +9,13 @@ public static class CiEndpoints
 {
     public static void MapCiEndpoints(this WebApplication app)
     {
-        // CI/CD upload endpoint — called from GitHub Actions
         app.MapPost("/api/ci/apps/{appSlug}/releases", async (
             string appSlug,
             HttpRequest request,
-            AppDbContext db,
-            ArtifactStorageService storage,
+            IAppRepository appRepo,
+            IReleaseRepository releaseRepo,
+            IArtifactRepository artifactRepo,
+            IArtifactStorage storage,
             IConfiguration config) =>
         {
             var expected = config["UpdateHub:CiToken"];
@@ -24,22 +25,22 @@ public static class CiEndpoints
             if (!request.HasFormContentType)
                 return Results.BadRequest(new { error = "multipart/form-data required" });
 
-            var form     = await request.ReadFormAsync();
-            var file     = form.Files["file"];
-            var version  = form["version"].ToString();
-            var platform = form["platform"].ToString();
-            var arch     = form["arch"].FirstOrDefault() ?? "x64";
-            var channel  = form["channel"].FirstOrDefault() ?? "stable";
-            var notes    = form["release_notes"].ToString();
-            var sig      = form["signature"].ToString();
+            var form      = await request.ReadFormAsync();
+            var file      = form.Files["file"];
+            var version   = form["version"].ToString();
+            var platform  = form["platform"].ToString();
+            var arch      = form["arch"].FirstOrDefault() ?? "x64";
+            var channel   = form["channel"].FirstOrDefault() ?? "stable";
+            var notes     = form["release_notes"].ToString();
+            var sig       = form["signature"].ToString();
             var mandatory = form["is_mandatory"] == "true";
 
             if (file is null || string.IsNullOrWhiteSpace(version) || string.IsNullOrWhiteSpace(platform))
                 return Results.BadRequest(new { error = "file, version and platform are required" });
 
-            var appEntity = await db.Apps.FirstOrDefaultAsync(a => a.Slug == appSlug);
+            var appEntity = await appRepo.GetBySlugAsync(appSlug);
             if (appEntity is null)
-                return Results.NotFound(new { error = $"App '{appSlug}' not registered" });
+                return Results.NotFound(new { error = $"App '{appSlug}' not registered in UpdateHub" });
 
             var ch = channel.ToLower() switch
             {
@@ -48,30 +49,27 @@ public static class CiEndpoints
                 _       => ReleaseChannel.Stable
             };
 
-            // Reuse existing draft release for this version/channel, or create new one
-            var release = await db.Releases.FirstOrDefaultAsync(r =>
-                r.AppId == appEntity.Id && r.Version == version && r.Channel == ch);
+            var release = appEntity.Releases.FirstOrDefault(r =>
+                r.Version == version.Trim() && r.Channel == ch);
 
             if (release is null)
             {
-                release = new Release
+                release = await releaseRepo.CreateAsync(new Release
                 {
-                    AppId = appEntity.Id,
-                    Version = version.Trim(),
-                    Channel = ch,
-                    Status = ReleaseStatus.Draft,
+                    AppId        = appEntity.Id,
+                    Version      = version.Trim(),
+                    Channel      = ch,
+                    Status       = ReleaseStatus.Draft,
                     ReleaseNotes = string.IsNullOrWhiteSpace(notes) ? null : notes.Trim(),
-                    IsMandatory = mandatory
-                };
-                db.Releases.Add(release);
-                await db.SaveChangesAsync();
+                    IsMandatory  = mandatory
+                });
             }
 
             using var stream = file.OpenReadStream();
             var (storedPath, sha256, fileSize) = await storage.StoreAsync(
                 stream, file.FileName, appSlug, version);
 
-            var artifact = new Artifact
+            var artifact = await artifactRepo.CreateAsync(new Artifact
             {
                 ReleaseId     = release.Id,
                 Platform      = platform.Trim().ToLower(),
@@ -81,16 +79,14 @@ public static class CiEndpoints
                 Sha256        = sha256,
                 Signature     = string.IsNullOrWhiteSpace(sig) ? null : sig.Trim(),
                 FileSizeBytes = fileSize
-            };
-            db.Artifacts.Add(artifact);
-            await db.SaveChangesAsync();
+            });
 
             return Results.Ok(new
             {
                 release_id  = release.Id,
                 artifact_id = artifact.Id,
                 sha256,
-                message = $"Artifact uploaded. Release is in Draft — publish it via admin UI."
+                message = "Artifact uploaded. Release is in Draft — publish it via admin UI."
             });
         }).DisableAntiforgery();
     }

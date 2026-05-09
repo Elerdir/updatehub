@@ -1,4 +1,6 @@
-namespace UpdateHub.Web.Data.Entities;
+using UpdateHub.Domain.Enums;
+
+namespace UpdateHub.Domain.Entities;
 
 public class Release
 {

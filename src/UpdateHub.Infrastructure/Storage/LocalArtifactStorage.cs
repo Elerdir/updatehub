@@ -1,15 +1,15 @@
 using System.Security.Cryptography;
+using UpdateHub.Application.Interfaces;
 
-namespace UpdateHub.Web.Services;
+namespace UpdateHub.Infrastructure.Storage;
 
-public class ArtifactStorageService
+public class LocalArtifactStorage : IArtifactStorage
 {
     private readonly string _storagePath;
 
-    public ArtifactStorageService(IConfiguration config)
+    public LocalArtifactStorage(string storagePath)
     {
-        _storagePath = config["UpdateHub:StoragePath"]
-            ?? Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "artifacts");
+        _storagePath = storagePath;
         Directory.CreateDirectory(_storagePath);
     }
 
@@ -20,7 +20,7 @@ public class ArtifactStorageService
         Directory.CreateDirectory(dir);
 
         var safeFileName = Path.GetFileName(fileName);
-        var storedPath = Path.Combine(dir, safeFileName);
+        var storedPath   = Path.Combine(dir, safeFileName);
 
         var buffer = new byte[81920];
         using var memStream = new MemoryStream();
@@ -29,7 +29,7 @@ public class ArtifactStorageService
             memStream.Write(buffer, 0, bytesRead);
 
         var bytes = memStream.ToArray();
-        var hash = Convert.ToHexString(SHA256.HashData(bytes)).ToLower();
+        var hash  = Convert.ToHexString(SHA256.HashData(bytes)).ToLower();
 
         await File.WriteAllBytesAsync(storedPath, bytes);
         return (storedPath, hash, bytes.Length);

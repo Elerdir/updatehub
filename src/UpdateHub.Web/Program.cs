@@ -1,42 +1,33 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
-using Microsoft.EntityFrameworkCore;
+using UpdateHub.Infrastructure;
 using UpdateHub.Web.Components;
-using UpdateHub.Web.Data;
 using UpdateHub.Web.Endpoints;
-using UpdateHub.Web.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents(options =>
-        options.MaximumReceiveMessageSize = 512 * 1024 * 1024); // 512 MB for file uploads
+        options.MaximumReceiveMessageSize = 512 * 1024 * 1024);
 
 builder.Services.AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
     .AddCookie(options =>
     {
-        options.LoginPath        = "/login";
-        options.AccessDeniedPath = "/login";
-        options.ExpireTimeSpan   = TimeSpan.FromHours(8);
+        options.LoginPath         = "/login";
+        options.AccessDeniedPath  = "/login";
+        options.ExpireTimeSpan    = TimeSpan.FromHours(8);
         options.SlidingExpiration = true;
     });
 
 builder.Services.AddAuthorization();
 builder.Services.AddCascadingAuthenticationState();
 
-var dbPath = builder.Configuration["UpdateHub:DatabasePath"] ?? "updatehub.db";
-builder.Services.AddDbContext<AppDbContext>(o => o.UseSqlite($"Data Source={dbPath}"));
-
-builder.Services.AddScoped<AdminService>();
-builder.Services.AddScoped<UpdateResolverService>();
-builder.Services.AddSingleton<ArtifactStorageService>();
+builder.Services.AddInfrastructure(builder.Configuration);
 
 var app = builder.Build();
 
-// Create DB schema on first run
-using (var scope = app.Services.CreateScope())
-    scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.EnsureCreated();
+app.Services.EnsureDatabaseCreated();
 
 if (!app.Environment.IsDevelopment())
 {
@@ -53,7 +44,6 @@ app.UseAntiforgery();
 app.MapPublicEndpoints();
 app.MapCiEndpoints();
 
-// Login form POST
 app.MapPost("/account/login", async (HttpContext ctx, IConfiguration config) =>
 {
     var form     = await ctx.Request.ReadFormAsync();
@@ -66,21 +56,14 @@ app.MapPost("/account/login", async (HttpContext ctx, IConfiguration config) =>
     var valid = string.Equals(username, adminUser, StringComparison.OrdinalIgnoreCase)
              && BCrypt.Net.BCrypt.Verify(password, adminHash);
 
-    if (!valid)
-    {
-        ctx.Response.Redirect("/login?error=1");
-        return;
-    }
+    if (!valid) { ctx.Response.Redirect("/login?error=1"); return; }
 
     var claims    = new[] { new Claim(ClaimTypes.Name, username), new Claim(ClaimTypes.Role, "Admin") };
     var identity  = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
-    var principal = new ClaimsPrincipal(identity);
-
-    await ctx.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, principal);
+    await ctx.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, new ClaimsPrincipal(identity));
     ctx.Response.Redirect("/");
 }).AllowAnonymous().DisableAntiforgery();
 
-// Logout
 app.MapPost("/account/logout", async (HttpContext ctx) =>
 {
     await ctx.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);

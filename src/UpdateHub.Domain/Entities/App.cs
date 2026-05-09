@@ -1,4 +1,4 @@
-namespace UpdateHub.Web.Data.Entities;
+namespace UpdateHub.Domain.Entities;
 
 public class App
 {

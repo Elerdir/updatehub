@@ -1,26 +1,18 @@
-using Microsoft.EntityFrameworkCore;
-using UpdateHub.Web.Data;
-using UpdateHub.Web.Data.Entities;
+using UpdateHub.Application.Interfaces;
+using UpdateHub.Application.Models;
+using UpdateHub.Domain.Entities;
+using UpdateHub.Domain.Enums;
 
-namespace UpdateHub.Web.Services;
+namespace UpdateHub.Application.Services;
 
-public class UpdateResolverService(AppDbContext db, IConfiguration config)
+public class UpdateResolverService(
+    IReleaseRepository releases,
+    IArtifactRepository artifacts,
+    string baseUrl)
 {
-    private string BaseUrl => config["UpdateHub:BaseUrl"]?.TrimEnd('/') ?? "";
-
     public async Task<TauriManifest?> GetTauriManifestAsync(string appSlug, string? channel)
     {
-        var ch = ParseChannel(channel);
-
-        var release = await db.Releases
-            .Include(r => r.Artifacts)
-            .Include(r => r.App)
-            .Where(r => r.App.Slug == appSlug
-                     && r.Status == ReleaseStatus.Published
-                     && r.Channel == ch)
-            .OrderByDescending(r => r.PublishedAt)
-            .FirstOrDefaultAsync();
-
+        var release = await releases.GetLatestPublishedAsync(appSlug, ParseChannel(channel));
         if (release is null) return null;
 
         var platforms = new Dictionary<string, TauriPlatformEntry>();
@@ -28,7 +20,7 @@ public class UpdateResolverService(AppDbContext db, IConfiguration config)
         {
             var key = TauriPlatformKey(a.Platform, a.Architecture);
             if (key is not null && a.Signature is not null)
-                platforms[key] = new TauriPlatformEntry(a.Signature, $"{BaseUrl}/api/downloads/{a.Id}");
+                platforms[key] = new TauriPlatformEntry(a.Signature, DownloadUrl(a.Id));
         }
 
         return new TauriManifest(
@@ -41,17 +33,7 @@ public class UpdateResolverService(AppDbContext db, IConfiguration config)
     public async Task<UpdateCheckResult?> CheckUpdateAsync(
         string appSlug, string currentVersion, string? platform, string? arch, string? channel)
     {
-        var ch = ParseChannel(channel);
-
-        var release = await db.Releases
-            .Include(r => r.Artifacts)
-            .Include(r => r.App)
-            .Where(r => r.App.Slug == appSlug
-                     && r.Status == ReleaseStatus.Published
-                     && r.Channel == ch)
-            .OrderByDescending(r => r.PublishedAt)
-            .FirstOrDefaultAsync();
-
+        var release = await releases.GetLatestPublishedAsync(appSlug, ParseChannel(channel));
         if (release is null) return null;
 
         var hasUpdate = IsNewer(currentVersion, release.Version);
@@ -66,11 +48,14 @@ public class UpdateResolverService(AppDbContext db, IConfiguration config)
             hasUpdate,
             release.Version,
             release.ReleaseNotes,
-            artifact is not null ? $"{BaseUrl}/api/downloads/{artifact.Id}" : null,
+            artifact is not null ? DownloadUrl(artifact.Id) : null,
             artifact?.Sha256,
             release.IsMandatory,
             release.Channel.ToString().ToLower());
     }
+
+    private string DownloadUrl(Guid artifactId) =>
+        $"{baseUrl.TrimEnd('/')}/api/downloads/{artifactId}";
 
     private static ReleaseChannel ParseChannel(string? ch) => ch?.ToLower() switch
     {
@@ -99,13 +84,3 @@ public class UpdateResolverService(AppDbContext db, IConfiguration config)
         return string.Compare(latest, current, StringComparison.OrdinalIgnoreCase) > 0;
     }
 }
-
-public record TauriManifest(
-    string Version, string Notes, string PubDate,
-    Dictionary<string, TauriPlatformEntry> Platforms);
-
-public record TauriPlatformEntry(string Signature, string Url);
-
-public record UpdateCheckResult(
-    bool HasUpdate, string Version, string? ReleaseNotes,
-    string? DownloadUrl, string? Sha256, bool IsMandatory, string Channel);

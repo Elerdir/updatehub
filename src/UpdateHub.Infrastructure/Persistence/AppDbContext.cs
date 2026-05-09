@@ -1,7 +1,7 @@
 using Microsoft.EntityFrameworkCore;
-using UpdateHub.Web.Data.Entities;
+using UpdateHub.Domain.Entities;
 
-namespace UpdateHub.Web.Data;
+namespace UpdateHub.Infrastructure.Persistence;
 
 public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(options)
 {

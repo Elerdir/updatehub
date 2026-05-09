@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
-using UpdateHub.Web.Data;
-using UpdateHub.Web.Services;
+using UpdateHub.Application.Interfaces;
+using UpdateHub.Application.Services;
 
 namespace UpdateHub.Web.Endpoints;
 
@@ -8,7 +8,6 @@ public static class PublicEndpoints
 {
     public static void MapPublicEndpoints(this WebApplication app)
     {
-        // Tauri updater manifest
         app.MapGet("/api/apps/{appSlug}/tauri/latest.json", async (
             string appSlug,
             [FromQuery] string? channel,
@@ -19,16 +18,15 @@ public static class PublicEndpoints
 
             return Results.Ok(new
             {
-                version  = manifest.Version,
-                notes    = manifest.Notes,
-                pub_date = manifest.PubDate,
+                version   = manifest.Version,
+                notes     = manifest.Notes,
+                pub_date  = manifest.PubDate,
                 platforms = manifest.Platforms.ToDictionary(
                     kvp => kvp.Key,
                     kvp => new { signature = kvp.Value.Signature, url = kvp.Value.Url })
             });
         });
 
-        // Generic JSON update check — used by .NET/Avalonia apps
         app.MapGet("/api/apps/{appSlug}/update", async (
             string appSlug,
             [FromQuery] string? version,
@@ -55,13 +53,12 @@ public static class PublicEndpoints
             });
         });
 
-        // Artifact download
         app.MapGet("/api/downloads/{artifactId:guid}", async (
             Guid artifactId,
-            AppDbContext db,
-            ArtifactStorageService storage) =>
+            IArtifactRepository artifacts,
+            IArtifactStorage storage) =>
         {
-            var artifact = await db.Artifacts.FindAsync(artifactId);
+            var artifact = await artifacts.GetByIdAsync(artifactId);
             if (artifact is null) return Results.NotFound();
 
             var stream = storage.OpenRead(artifact.StoredPath);
