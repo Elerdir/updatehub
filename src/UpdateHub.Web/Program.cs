@@ -43,6 +43,9 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.UseAntiforgery();
 
+app.MapGet("/health", () => Results.Ok(new { status = "ok", timestamp = DateTime.UtcNow }))
+   .AllowAnonymous();
+
 app.MapPublicEndpoints();
 app.MapCiEndpoints();
 
