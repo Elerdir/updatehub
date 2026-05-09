@@ -42,7 +42,7 @@ else
     {
         <div class="release-notes card">
             <div class="release-notes-title">Release Notes</div>
-            <pre>@release.ReleaseNotes</pre>
+            <MarkdownView Content="@release.ReleaseNotes" />
         </div>
     }
 
@@ -99,6 +99,7 @@ else
                     <th>Size</th>
                     <th>SHA-256</th>
                     <th>Signature</th>
+                    <th>Downloads</th>
                     <th></th>
                 </tr>
             </thead>
@@ -112,6 +113,7 @@ else
                         <td>@FormatSize(a.FileSizeBytes)</td>
                         <td><code class="hash" title="@a.Sha256">@a.Sha256[..12]…</code></td>
                         <td>@(a.Signature is not null ? "✓" : "—")</td>
+                        <td>@a.DownloadCount</td>
                         <td>
                             <button class="btn-danger-sm" @onclick="() => DeleteArtifact(a.Id)">
                                 Delete

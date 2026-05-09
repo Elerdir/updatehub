@@ -12,5 +12,6 @@ public class Artifact
     public string Sha256 { get; set; } = "";
     public string? Signature { get; set; }          // Tauri Ed25519 signature
     public long FileSizeBytes { get; set; }
+    public long DownloadCount { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
 }

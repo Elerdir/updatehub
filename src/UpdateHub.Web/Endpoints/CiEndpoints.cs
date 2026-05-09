@@ -16,9 +16,14 @@ public static class CiEndpoints
             IReleaseRepository releaseRepo,
             IArtifactRepository artifactRepo,
             IArtifactStorage storage,
+            SettingsService settings,
             IConfiguration config) =>
         {
-            var expected = config["UpdateHub:CiToken"];
+            var dbToken  = await settings.GetCiTokenAsync();
+            var expected = string.IsNullOrWhiteSpace(dbToken)
+                ? config["UpdateHub:CiToken"]
+                : dbToken;
+
             if (string.IsNullOrEmpty(expected) || request.Headers["X-UpdateHub-Token"] != expected)
                 return Results.Unauthorized();
 

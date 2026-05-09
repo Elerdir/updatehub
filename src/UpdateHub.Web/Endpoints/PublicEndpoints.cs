@@ -61,6 +61,8 @@ public static class PublicEndpoints
             var artifact = await artifacts.GetByIdAsync(artifactId);
             if (artifact is null) return Results.NotFound();
 
+            await artifacts.IncrementDownloadCountAsync(artifactId);
+
             var stream = storage.OpenRead(artifact.StoredPath);
             return Results.File(stream, "application/octet-stream", artifact.FileName);
         });

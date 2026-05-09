@@ -7,7 +7,7 @@ on:
     branches: [main]
 
 jobs:
-  build:
+  build-and-test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -19,10 +19,13 @@ jobs:
           dotnet-quality: 'preview'
 
       - name: Restore
-        run: dotnet restore src/UpdateHub.Web/UpdateHub.Web.csproj
+        run: dotnet restore UpdateHub.sln
 
       - name: Build
-        run: dotnet build src/UpdateHub.Web/UpdateHub.Web.csproj --no-restore -c Release
+        run: dotnet build UpdateHub.sln --no-restore -c Release
+
+      - name: Test
+        run: dotnet test UpdateHub.sln --no-build -c Release --logger "console;verbosity=minimal"
 
       - name: Publish
         run: dotnet publish src/UpdateHub.Web/UpdateHub.Web.csproj --no-build -c Release -o ./publish

@@ -23,10 +23,12 @@ public static class DependencyInjection
         services.AddScoped<IAppRepository,      AppRepository>();
         services.AddScoped<IReleaseRepository,  ReleaseRepository>();
         services.AddScoped<IArtifactRepository, ArtifactRepository>();
+        services.AddScoped<ISettingsRepository, SettingsRepository>();
 
         services.AddSingleton<IArtifactStorage>(_ => new LocalArtifactStorage(storagePath));
 
         services.AddScoped<AdminService>();
+        services.AddScoped<SettingsService>();
         services.AddScoped<UpdateResolverService>(sp => new UpdateResolverService(
             sp.GetRequiredService<IReleaseRepository>(),
             baseUrl));

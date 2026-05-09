@@ -22,4 +22,11 @@ public class ArtifactRepository(AppDbContext db) : IArtifactRepository
         db.Artifacts.Remove(artifact);
         await db.SaveChangesAsync();
     }
+
+    public async Task IncrementDownloadCountAsync(Guid id)
+    {
+        await db.Artifacts
+            .Where(a => a.Id == id)
+            .ExecuteUpdateAsync(s => s.SetProperty(a => a.DownloadCount, a => a.DownloadCount + 1));
+    }
 }

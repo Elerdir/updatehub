@@ -29,7 +29,8 @@ builder.Services.AddInfrastructure(builder.Configuration);
 
 var app = builder.Build();
 
-app.Services.EnsureDatabaseCreated();
+if (!app.Environment.IsEnvironment("Testing"))
+    app.Services.EnsureDatabaseCreated();
 
 if (!app.Environment.IsDevelopment())
 {
@@ -79,3 +80,5 @@ app.MapRazorComponents<AppShell>()
     .AddInteractiveServerRenderMode();
 
 app.Run();
+
+public partial class Program { }

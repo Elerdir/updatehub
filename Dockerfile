@@ -17,4 +17,6 @@ ENV UpdateHub__DatabasePath=/app/data/updatehub.db
 ENV UpdateHub__StoragePath=/app/data/artifacts
 
 EXPOSE 8080
+HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
+    CMD curl -f http://localhost:8080/health || exit 1
 ENTRYPOINT ["dotnet", "UpdateHub.Web.dll"]

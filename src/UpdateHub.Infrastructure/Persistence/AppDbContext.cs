@@ -8,9 +8,13 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<App> Apps => Set<App>();
     public DbSet<Release> Releases => Set<Release>();
     public DbSet<Artifact> Artifacts => Set<Artifact>();
+    public DbSet<AppSetting> Settings => Set<AppSetting>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        modelBuilder.Entity<AppSetting>()
+            .HasKey(s => s.Key);
+
         modelBuilder.Entity<App>()
             .HasIndex(a => a.Slug).IsUnique();
 
