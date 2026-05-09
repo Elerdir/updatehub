@@ -1,0 +1,14 @@
+services:
+  updatehub:
+    build: .
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./data:/app/data
+    environment:
+      - UpdateHub__BaseUrl=http://localhost:8080
+      - UpdateHub__CiToken=CHANGE_ME
+      - UpdateHub__Admin__Username=admin
+      # Generate hash: dotnet script or use https://bcrypt.online/
+      - UpdateHub__Admin__PasswordHash=CHANGE_ME_BCRYPT_HASH
+    restart: unless-stopped

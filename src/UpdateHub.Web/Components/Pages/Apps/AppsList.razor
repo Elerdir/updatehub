@@ -1,0 +1,113 @@
+@page "/apps"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@inject AdminService AdminSvc
+@inject NavigationManager Nav
+
+<PageTitle>Applications — UpdateHub</PageTitle>
+
+<div class="page-header">
+    <h1>Applications</h1>
+    <button class="btn-primary" @onclick="() => showForm = true">+ New Application</button>
+</div>
+
+@if (showForm)
+{
+    <div class="modal-backdrop">
+        <div class="modal-card">
+            <h2>New Application</h2>
+            <div class="field">
+                <label>Slug <span class="hint">(unique ID used in API calls, e.g. container-commander)</span></label>
+                <input @bind="newSlug" placeholder="my-app" />
+            </div>
+            <div class="field">
+                <label>Name</label>
+                <input @bind="newName" placeholder="My Application" />
+            </div>
+            <div class="field">
+                <label>Description (optional)</label>
+                <textarea @bind="newDescription" rows="2"></textarea>
+            </div>
+            @if (formError is not null)
+            {
+                <div class="error">@formError</div>
+            }
+            <div class="form-actions">
+                <button class="btn-primary" @onclick="CreateApp">Create</button>
+                <button class="btn-ghost" @onclick="CancelForm">Cancel</button>
+            </div>
+        </div>
+    </div>
+}
+
+@if (apps is null)
+{
+    <p class="loading">Loading...</p>
+}
+else if (apps.Count == 0)
+{
+    <div class="empty-state">
+        <p>No applications registered yet.</p>
+    </div>
+}
+else
+{
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Slug</th>
+                <th>Releases</th>
+                <th>Created</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var app in apps)
+            {
+                <tr>
+                    <td><strong>@app.Name</strong>@if (!string.IsNullOrEmpty(app.Description)) {<br /><small class="muted">@app.Description</small>}</td>
+                    <td><code>@app.Slug</code></td>
+                    <td>@app.Releases.Count</td>
+                    <td>@app.CreatedAt.ToString("yyyy-MM-dd")</td>
+                    <td><a href="/apps/@app.Slug">Manage →</a></td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private List<App>? apps;
+    private bool showForm;
+    private string newSlug = "";
+    private string newName = "";
+    private string? newDescription;
+    private string? formError;
+
+    protected override async Task OnInitializedAsync() => apps = await AdminSvc.GetAppsAsync();
+
+    private async Task CreateApp()
+    {
+        formError = null;
+        if (string.IsNullOrWhiteSpace(newSlug)) { formError = "Slug is required."; return; }
+        if (string.IsNullOrWhiteSpace(newName))  { formError = "Name is required."; return; }
+
+        try
+        {
+            var app = await AdminSvc.CreateAppAsync(newSlug, newName, newDescription);
+            Nav.NavigateTo($"/apps/{app.Slug}");
+        }
+        catch (Exception ex)
+        {
+            formError = ex.Message.Contains("UNIQUE") ? "Slug already exists." : ex.Message;
+        }
+    }
+
+    private void CancelForm()
+    {
+        showForm = false;
+        newSlug = newName = "";
+        newDescription = formError = null;
+    }
+}

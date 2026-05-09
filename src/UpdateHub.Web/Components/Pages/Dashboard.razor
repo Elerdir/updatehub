@@ -1,0 +1,75 @@
+@page "/"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@inject AdminService AdminSvc
+
+<PageTitle>Dashboard — UpdateHub</PageTitle>
+
+<div class="page-header">
+    <h1>Dashboard</h1>
+</div>
+
+<div class="stats">
+    <div class="stat-card">
+        <span class="stat-value">@appCount</span>
+        <span class="stat-label">Applications</span>
+    </div>
+    <div class="stat-card">
+        <span class="stat-value">@publishedCount</span>
+        <span class="stat-label">Published Releases</span>
+    </div>
+</div>
+
+@if (apps is not null && apps.Count > 0)
+{
+    <div class="section-header">
+        <h2>Applications</h2>
+        <a href="/apps" class="btn-sm btn-outline">View all</a>
+    </div>
+    <table class="table">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Slug</th>
+                <th>Latest (Stable)</th>
+                <th>Releases</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var app in apps)
+            {
+                var latest = app.Releases
+                    .Where(r => r.Status == ReleaseStatus.Published && r.Channel == ReleaseChannel.Stable)
+                    .OrderByDescending(r => r.PublishedAt)
+                    .FirstOrDefault();
+                <tr>
+                    <td><strong>@app.Name</strong></td>
+                    <td><code>@app.Slug</code></td>
+                    <td>@(latest?.Version ?? "—")</td>
+                    <td>@app.Releases.Count</td>
+                    <td><a href="/apps/@app.Slug">Manage</a></td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+else if (apps is not null)
+{
+    <div class="empty-state">
+        <p>No applications yet.</p>
+        <a href="/apps" class="btn-primary">Register your first app</a>
+    </div>
+}
+
+@code {
+    private List<App>? apps;
+    private int appCount;
+    private int publishedCount;
+
+    protected override async Task OnInitializedAsync()
+    {
+        apps = await AdminSvc.GetAppsAsync();
+        (appCount, publishedCount) = await AdminSvc.GetStatsAsync();
+    }
+}

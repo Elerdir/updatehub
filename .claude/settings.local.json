@@ -1,0 +1,19 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(Get-ChildItem -Path \"E:\\\\Projects\\\\updatehub\" -Recurse -Force)",
+      "Bash(Select-Object FullName, PSIsContainer)",
+      "Bash(ConvertTo-Json)",
+      "PowerShell(Get-ChildItem -Path \"E:\\\\Projects\\\\updatehub\" -Recurse -Force | Select-Object FullName, @{Name=\"IsDirectory\";Expression={$_.PSIsContainer}})",
+      "Bash(Get-ChildItem -Path \"E:\\\\Projects\" -Directory)",
+      "Bash(Select-Object Name)",
+      "Bash(ls -1 \"E:\\\\Projects\\\\ScratchCardApp\\\\ScratchCardApp\\\\backend\\\\\" | head -10)",
+      "Read(//mnt/e/Projects/**)",
+      "Bash(dotnet new *)",
+      "Bash(dotnet sln *)",
+      "Read(//mnt/**)",
+      "Read(//e//**)",
+      "PowerShell(Get-ChildItem \"C:\\\\\", \"$env:LOCALAPPDATA\", \"$env:PROGRAMFILES\" -Recurse -Filter \"dotnet.exe\" -ErrorAction SilentlyContinue -Depth 3 | Select-Object -First 3 FullName)"
+    ]
+  }
+}

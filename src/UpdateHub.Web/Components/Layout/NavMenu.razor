@@ -1,0 +1,19 @@
+@inject NavigationManager Nav
+
+<nav class="sidebar">
+    <div class="brand">UpdateHub</div>
+    <ul>
+        <li>
+            <NavLink href="/" Match="NavLinkMatch.All">Dashboard</NavLink>
+        </li>
+        <li>
+            <NavLink href="/apps">Applications</NavLink>
+        </li>
+    </ul>
+    <div class="sidebar-footer">
+        <form method="post" action="/account/logout">
+            <AntiforgeryToken />
+            <button type="submit" class="btn-logout">Logout</button>
+        </form>
+    </div>
+</nav>

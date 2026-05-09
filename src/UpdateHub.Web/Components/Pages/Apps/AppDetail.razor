@@ -1,0 +1,219 @@
+@page "/apps/{Slug}"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@inject AdminService AdminSvc
+@inject NavigationManager Nav
+@inject IConfiguration Config
+
+<PageTitle>@(app?.Name ?? "App") — UpdateHub</PageTitle>
+
+@if (app is null)
+{
+    <p class="loading">Loading...</p>
+}
+else
+{
+    <div class="breadcrumb">
+        <a href="/apps">Applications</a> / @app.Name
+    </div>
+
+    <div class="page-header">
+        <h1>@app.Name</h1>
+        <div class="header-actions">
+            <button class="btn-ghost btn-sm" @onclick="() => showEditForm = !showEditForm">Edit</button>
+            <button class="btn-danger-outline btn-sm" @onclick="ConfirmDelete">Delete app</button>
+        </div>
+    </div>
+
+    @if (showEditForm)
+    {
+        <div class="card">
+            <h3>Edit Application</h3>
+            <div class="field">
+                <label>Name</label>
+                <input @bind="editName" />
+            </div>
+            <div class="field">
+                <label>Description</label>
+                <textarea @bind="editDescription" rows="2"></textarea>
+            </div>
+            @if (editError is not null) { <div class="error">@editError</div> }
+            <div class="form-actions">
+                <button class="btn-primary" @onclick="SaveEdit">Save</button>
+                <button class="btn-ghost" @onclick="() => showEditForm = false">Cancel</button>
+            </div>
+        </div>
+    }
+
+    <div class="api-info card">
+        <div class="api-info-title">API Endpoints</div>
+        <div class="api-row">
+            <span class="api-method">GET</span>
+            <code>@BaseUrl/api/apps/@app.Slug/update?version=1.0.0&amp;platform=windows&amp;arch=x64</code>
+        </div>
+        <div class="api-row">
+            <span class="api-method">GET</span>
+            <code>@BaseUrl/api/apps/@app.Slug/tauri/latest.json</code>
+        </div>
+    </div>
+
+    <div class="section-header">
+        <h2>Releases</h2>
+        <button class="btn-primary" @onclick="() => showReleaseForm = true">+ New Release</button>
+    </div>
+
+    @if (showReleaseForm)
+    {
+        <div class="card">
+            <h3>New Release</h3>
+            <div class="form-row">
+                <div class="field">
+                    <label>Version</label>
+                    <input @bind="newVersion" placeholder="1.0.0" />
+                </div>
+                <div class="field">
+                    <label>Channel</label>
+                    <select @bind="newChannel">
+                        <option value="Stable">Stable</option>
+                        <option value="Beta">Beta</option>
+                        <option value="Alpha">Alpha</option>
+                    </select>
+                </div>
+            </div>
+            <div class="field">
+                <label>Release Notes</label>
+                <textarea @bind="newNotes" rows="3" placeholder="What changed in this version..."></textarea>
+            </div>
+            <div class="field">
+                <label class="checkbox-label">
+                    <input type="checkbox" @bind="newMandatory" /> Mandatory update
+                </label>
+            </div>
+            @if (releaseError is not null) { <div class="error">@releaseError</div> }
+            <div class="form-actions">
+                <button class="btn-primary" @onclick="CreateRelease">Create</button>
+                <button class="btn-ghost" @onclick="CancelReleaseForm">Cancel</button>
+            </div>
+        </div>
+    }
+
+    @if (!app.Releases.Any())
+    {
+        <div class="empty-state"><p>No releases yet.</p></div>
+    }
+    else
+    {
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Version</th>
+                    <th>Channel</th>
+                    <th>Status</th>
+                    <th>Artifacts</th>
+                    <th>Published</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var r in app.Releases.OrderByDescending(r => r.CreatedAt))
+                {
+                    <tr>
+                        <td><strong>@r.Version</strong></td>
+                        <td>@r.Channel</td>
+                        <td><span class="badge @r.Status.ToString().ToLower()">@r.Status</span></td>
+                        <td>@r.Artifacts.Count</td>
+                        <td>@(r.PublishedAt?.ToString("yyyy-MM-dd") ?? "—")</td>
+                        <td><a href="/releases/@r.Id">Manage →</a></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+
+    @if (confirmDelete)
+    {
+        <div class="modal-backdrop">
+            <div class="modal-card">
+                <h2>Delete @app.Name?</h2>
+                <p>This will permanently delete the app and all its releases and artifacts.</p>
+                <div class="form-actions">
+                    <button class="btn-danger" @onclick="DeleteApp">Yes, delete</button>
+                    <button class="btn-ghost" @onclick="() => confirmDelete = false">Cancel</button>
+                </div>
+            </div>
+        </div>
+    }
+}
+
+@code {
+    [Parameter] public string Slug { get; set; } = "";
+
+    private App? app;
+    private string BaseUrl => Config["UpdateHub:BaseUrl"] ?? "https://your-updatehub-url";
+
+    private bool showEditForm;
+    private string editName = "";
+    private string? editDescription;
+    private string? editError;
+
+    private bool showReleaseForm;
+    private string newVersion = "";
+    private string newChannel = "Stable";
+    private string? newNotes;
+    private bool newMandatory;
+    private string? releaseError;
+
+    private bool confirmDelete;
+
+    protected override async Task OnParametersSetAsync() => await Load();
+
+    private async Task Load()
+    {
+        app = await AdminSvc.GetAppAsync(Slug);
+        if (app is not null) { editName = app.Name; editDescription = app.Description; }
+    }
+
+    private async Task SaveEdit()
+    {
+        editError = null;
+        if (app is null || string.IsNullOrWhiteSpace(editName)) { editError = "Name is required."; return; }
+        try
+        {
+            await AdminSvc.UpdateAppAsync(app.Id, editName, editDescription);
+            showEditForm = false;
+            await Load();
+        }
+        catch (Exception ex) { editError = ex.Message; }
+    }
+
+    private async Task CreateRelease()
+    {
+        releaseError = null;
+        if (app is null) return;
+        if (string.IsNullOrWhiteSpace(newVersion)) { releaseError = "Version is required."; return; }
+        try
+        {
+            var ch = Enum.Parse<ReleaseChannel>(newChannel);
+            var release = await AdminSvc.CreateReleaseAsync(app.Id, newVersion, ch, newNotes, newMandatory);
+            Nav.NavigateTo($"/releases/{release.Id}");
+        }
+        catch (Exception ex) { releaseError = ex.Message; }
+    }
+
+    private void CancelReleaseForm()
+    {
+        showReleaseForm = false;
+        newVersion = "";
+        newNotes = releaseError = null;
+        newMandatory = false;
+    }
+
+    private void ConfirmDelete() => confirmDelete = true;
+
+    private async Task DeleteApp()
+    {
+        if (app is null) return;
+        await AdminSvc.DeleteAppAsync(app.Id);
+        Nav.NavigateTo("/apps");
+    }
+}

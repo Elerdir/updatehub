@@ -1,0 +1,31 @@
+# Build output
+bin/
+obj/
+out/
+
+# SQLite databases
+*.db
+*.db-shm
+*.db-wal
+
+# Artifact storage
+artifacts/
+artifacts-dev/
+
+# Production config (never commit secrets)
+appsettings.Production.json
+appsettings.production.json
+.env
+
+# IDE
+.idea/
+.vs/
+*.user
+*.suo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Rider
+*.DotSettings.user

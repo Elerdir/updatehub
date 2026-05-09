@@ -1,0 +1,29 @@
+using Microsoft.EntityFrameworkCore;
+using UpdateHub.Web.Data.Entities;
+
+namespace UpdateHub.Web.Data;
+
+public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(options)
+{
+    public DbSet<App> Apps => Set<App>();
+    public DbSet<Release> Releases => Set<Release>();
+    public DbSet<Artifact> Artifacts => Set<Artifact>();
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<App>()
+            .HasIndex(a => a.Slug).IsUnique();
+
+        modelBuilder.Entity<Release>()
+            .HasOne(r => r.App)
+            .WithMany(a => a.Releases)
+            .HasForeignKey(r => r.AppId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<Artifact>()
+            .HasOne(a => a.Release)
+            .WithMany(r => r.Artifacts)
+            .HasForeignKey(a => a.ReleaseId)
+            .OnDelete(DeleteBehavior.Cascade);
+    }
+}

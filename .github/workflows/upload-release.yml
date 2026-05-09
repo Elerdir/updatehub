@@ -1,0 +1,47 @@
+# Example: Upload a release artifact to UpdateHub from GitHub Actions.
+# Copy this to your app's repo and adjust APP_SLUG and file paths.
+#
+# Required secrets in the app repo:
+#   UPDATEHUB_URL        — e.g. https://updates.yourdomain.com
+#   UPDATEHUB_CI_TOKEN   — value of UpdateHub:CiToken in your config
+
+name: Upload Release to UpdateHub
+
+on:
+  release:
+    types: [published]
+
+jobs:
+  upload-windows:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # --- Build your app here and produce the installer ---
+      # Example: dotnet publish, tauri build, etc.
+      # The artifact should be at a known path when done.
+
+      - name: Upload Windows x64 artifact
+        run: |
+          curl -f -X POST "${{ secrets.UPDATEHUB_URL }}/api/ci/apps/${{ vars.APP_SLUG }}/releases" \
+            -H "X-UpdateHub-Token: ${{ secrets.UPDATEHUB_CI_TOKEN }}" \
+            -F "file=@./dist/MyApp-Setup-x64.exe" \
+            -F "version=${{ github.event.release.tag_name }}" \
+            -F "platform=windows" \
+            -F "arch=x64" \
+            -F "channel=stable" \
+            -F "release_notes=${{ github.event.release.body }}"
+
+  # For Tauri apps, also include the .sig signature:
+  # upload-tauri-windows:
+  #   steps:
+  #     - name: Upload Tauri Windows artifact
+  #       run: |
+  #         curl -f -X POST "${{ secrets.UPDATEHUB_URL }}/api/ci/apps/${{ vars.APP_SLUG }}/releases" \
+  #           -H "X-UpdateHub-Token: ${{ secrets.UPDATEHUB_CI_TOKEN }}" \
+  #           -F "file=@./src-tauri/target/release/bundle/nsis/MyApp_1.0.0_x64-setup.exe" \
+  #           -F "signature=$(cat ./src-tauri/target/release/bundle/nsis/MyApp_1.0.0_x64-setup.exe.sig)" \
+  #           -F "version=${{ github.event.release.tag_name }}" \
+  #           -F "platform=windows" \
+  #           -F "arch=x64" \
+  #           -F "channel=stable"

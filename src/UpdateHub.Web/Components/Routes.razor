@@ -1,0 +1,21 @@
+@inject NavigationManager Nav
+
+<Router AppAssembly="typeof(App).Assembly">
+    <Found Context="routeData">
+        <AuthorizeRouteView RouteData="routeData" DefaultLayout="typeof(Layout.MainLayout)">
+            <NotAuthorized>
+                @{
+                    Nav.NavigateTo($"/login?returnUrl={Uri.EscapeDataString(Nav.Uri)}", forceLoad: true);
+                }
+            </NotAuthorized>
+        </AuthorizeRouteView>
+        <Authorizing>
+            <p>Loading...</p>
+        </Authorizing>
+    </Found>
+    <NotFound>
+        <LayoutView Layout="typeof(Layout.MainLayout)">
+            <h2>404 — Page not found</h2>
+        </LayoutView>
+    </NotFound>
+</Router>

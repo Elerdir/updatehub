@@ -1,0 +1,71 @@
+using Microsoft.AspNetCore.Mvc;
+using UpdateHub.Web.Data;
+using UpdateHub.Web.Services;
+
+namespace UpdateHub.Web.Endpoints;
+
+public static class PublicEndpoints
+{
+    public static void MapPublicEndpoints(this WebApplication app)
+    {
+        // Tauri updater manifest
+        app.MapGet("/api/apps/{appSlug}/tauri/latest.json", async (
+            string appSlug,
+            [FromQuery] string? channel,
+            UpdateResolverService resolver) =>
+        {
+            var manifest = await resolver.GetTauriManifestAsync(appSlug, channel);
+            if (manifest is null) return Results.NotFound();
+
+            return Results.Ok(new
+            {
+                version  = manifest.Version,
+                notes    = manifest.Notes,
+                pub_date = manifest.PubDate,
+                platforms = manifest.Platforms.ToDictionary(
+                    kvp => kvp.Key,
+                    kvp => new { signature = kvp.Value.Signature, url = kvp.Value.Url })
+            });
+        });
+
+        // Generic JSON update check — used by .NET/Avalonia apps
+        app.MapGet("/api/apps/{appSlug}/update", async (
+            string appSlug,
+            [FromQuery] string? version,
+            [FromQuery] string? platform,
+            [FromQuery] string? arch,
+            [FromQuery] string? channel,
+            UpdateResolverService resolver) =>
+        {
+            if (string.IsNullOrWhiteSpace(version))
+                return Results.BadRequest(new { error = "version parameter is required" });
+
+            var result = await resolver.CheckUpdateAsync(appSlug, version, platform, arch, channel);
+            if (result is null) return Results.NotFound();
+
+            return Results.Ok(new
+            {
+                has_update    = result.HasUpdate,
+                version       = result.Version,
+                release_notes = result.ReleaseNotes,
+                download_url  = result.DownloadUrl,
+                sha256        = result.Sha256,
+                is_mandatory  = result.IsMandatory,
+                channel       = result.Channel
+            });
+        });
+
+        // Artifact download
+        app.MapGet("/api/downloads/{artifactId:guid}", async (
+            Guid artifactId,
+            AppDbContext db,
+            ArtifactStorageService storage) =>
+        {
+            var artifact = await db.Artifacts.FindAsync(artifactId);
+            if (artifact is null) return Results.NotFound();
+
+            var stream = storage.OpenRead(artifact.StoredPath);
+            return Results.File(stream, "application/octet-stream", artifact.FileName);
+        });
+    }
+}

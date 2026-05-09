@@ -1,0 +1,223 @@
+@page "/releases/{ReleaseId:guid}"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@inject AdminService AdminSvc
+@inject ArtifactStorageService Storage
+@inject NavigationManager Nav
+
+<PageTitle>Release @(release?.Version ?? "") — UpdateHub</PageTitle>
+
+@if (release is null)
+{
+    <p class="loading">Loading...</p>
+}
+else
+{
+    <div class="breadcrumb">
+        <a href="/apps">Applications</a> /
+        <a href="/apps/@release.App.Slug">@release.App.Name</a> /
+        @release.Version
+    </div>
+
+    <div class="page-header">
+        <div class="page-header-left">
+            <h1>@release.Version</h1>
+            <span class="badge @release.Status.ToString().ToLower()">@release.Status</span>
+            <span class="badge channel-@release.Channel.ToString().ToLower()">@release.Channel</span>
+            @if (release.IsMandatory) { <span class="badge mandatory">Mandatory</span> }
+        </div>
+        <div class="header-actions">
+            @if (release.Status == ReleaseStatus.Draft)
+            {
+                <button class="btn-primary" @onclick="Publish">Publish</button>
+            }
+            @if (release.Status == ReleaseStatus.Published)
+            {
+                <button class="btn-danger-outline" @onclick="Archive">Archive</button>
+            }
+            <button class="btn-ghost btn-sm" @onclick="ConfirmDelete">Delete release</button>
+        </div>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(release.ReleaseNotes))
+    {
+        <div class="release-notes card">
+            <div class="release-notes-title">Release Notes</div>
+            <pre>@release.ReleaseNotes</pre>
+        </div>
+    }
+
+    <div class="section-header">
+        <h2>Artifacts</h2>
+    </div>
+
+    <div class="card upload-form">
+        <h3>Upload Artifact</h3>
+        <div class="form-row">
+            <div class="field">
+                <label>Platform</label>
+                <select @bind="uploadPlatform">
+                    <option value="windows">Windows</option>
+                    <option value="macos">macOS</option>
+                    <option value="linux">Linux</option>
+                </select>
+            </div>
+            <div class="field">
+                <label>Architecture</label>
+                <select @bind="uploadArch">
+                    <option value="x64">x64</option>
+                    <option value="arm64">arm64</option>
+                    <option value="x86">x86</option>
+                </select>
+            </div>
+        </div>
+        <div class="field">
+            <label>Tauri Ed25519 Signature <span class="hint">(only needed for Tauri apps)</span></label>
+            <input @bind="uploadSignature" placeholder="paste signature from tauri signer..." />
+        </div>
+        <div class="field">
+            <label>File</label>
+            <InputFile OnChange="FileSelected" />
+        </div>
+        @if (uploadError is not null) { <div class="error">@uploadError</div> }
+        @if (uploading) { <div class="info">Uploading, please wait...</div> }
+        <div class="form-actions">
+            <button class="btn-primary" @onclick="UploadArtifact"
+                    disabled="@(selectedFile is null || uploading)">
+                Upload
+            </button>
+        </div>
+    </div>
+
+    @if (release.Artifacts.Any())
+    {
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Platform</th>
+                    <th>Arch</th>
+                    <th>File</th>
+                    <th>Size</th>
+                    <th>SHA-256</th>
+                    <th>Signature</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var a in release.Artifacts.OrderBy(a => a.Platform))
+                {
+                    <tr>
+                        <td>@a.Platform</td>
+                        <td>@a.Architecture</td>
+                        <td>@a.FileName</td>
+                        <td>@FormatSize(a.FileSizeBytes)</td>
+                        <td><code class="hash" title="@a.Sha256">@a.Sha256[..12]…</code></td>
+                        <td>@(a.Signature is not null ? "✓" : "—")</td>
+                        <td>
+                            <button class="btn-danger-sm" @onclick="() => DeleteArtifact(a.Id)">
+                                Delete
+                            </button>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+    else
+    {
+        <div class="empty-state"><p>No artifacts uploaded yet.</p></div>
+    }
+
+    @if (confirmDelete)
+    {
+        <div class="modal-backdrop">
+            <div class="modal-card">
+                <h2>Delete release @release.Version?</h2>
+                <p>All artifacts will also be deleted permanently.</p>
+                <div class="form-actions">
+                    <button class="btn-danger" @onclick="DeleteRelease">Yes, delete</button>
+                    <button class="btn-ghost" @onclick="() => confirmDelete = false">Cancel</button>
+                </div>
+            </div>
+        </div>
+    }
+}
+
+@code {
+    [Parameter] public Guid ReleaseId { get; set; }
+
+    private Release? release;
+    private IBrowserFile? selectedFile;
+    private string uploadPlatform = "windows";
+    private string uploadArch = "x64";
+    private string? uploadSignature;
+    private bool uploading;
+    private string? uploadError;
+    private bool confirmDelete;
+
+    protected override async Task OnParametersSetAsync() => await Load();
+
+    private async Task Load() => release = await AdminSvc.GetReleaseAsync(ReleaseId);
+
+    private void FileSelected(InputFileChangeEventArgs e) => selectedFile = e.File;
+
+    private async Task UploadArtifact()
+    {
+        if (selectedFile is null || release is null) return;
+        uploading = true;
+        uploadError = null;
+        try
+        {
+            const long maxSize = 500L * 1024 * 1024; // 500 MB
+            await using var stream = selectedFile.OpenReadStream(maxAllowedSize: maxSize);
+            await AdminSvc.AddArtifactAsync(
+                release.Id, uploadPlatform, uploadArch,
+                stream, selectedFile.Name, uploadSignature, Storage);
+            selectedFile = null;
+            uploadSignature = null;
+            await Load();
+        }
+        catch (Exception ex)
+        {
+            uploadError = ex.Message;
+        }
+        finally { uploading = false; }
+    }
+
+    private async Task Publish()
+    {
+        if (release is null) return;
+        await AdminSvc.PublishReleaseAsync(release.Id);
+        await Load();
+    }
+
+    private async Task Archive()
+    {
+        if (release is null) return;
+        await AdminSvc.ArchiveReleaseAsync(release.Id);
+        await Load();
+    }
+
+    private async Task DeleteArtifact(Guid id)
+    {
+        await AdminSvc.DeleteArtifactAsync(id, Storage);
+        await Load();
+    }
+
+    private void ConfirmDelete() => confirmDelete = true;
+
+    private async Task DeleteRelease()
+    {
+        if (release is null) return;
+        var appSlug = release.App.Slug;
+        await AdminSvc.DeleteReleaseAsync(release.Id);
+        Nav.NavigateTo($"/apps/{appSlug}");
+    }
+
+    private static string FormatSize(long bytes) => bytes switch
+    {
+        < 1024             => $"{bytes} B",
+        < 1024 * 1024      => $"{bytes / 1024.0:F1} KB",
+        _                  => $"{bytes / (1024.0 * 1024):F1} MB"
+    };
+}
