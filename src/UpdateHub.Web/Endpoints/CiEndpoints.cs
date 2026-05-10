@@ -19,10 +19,14 @@ public static class CiEndpoints
             SettingsService settings,
             IConfiguration config) =>
         {
-            var dbToken  = await settings.GetCiTokenAsync();
-            var expected = string.IsNullOrWhiteSpace(dbToken)
-                ? config["UpdateHub:CiToken"]
-                : dbToken;
+            // Per-app token takes priority; fall back to global token
+            var appForToken = await appRepo.GetBySlugAsync(appSlug);
+            var appToken    = appForToken?.CiToken;
+
+            var dbToken     = await settings.GetCiTokenAsync();
+            var globalToken = string.IsNullOrWhiteSpace(dbToken) ? config["UpdateHub:CiToken"] : dbToken;
+
+            var expected    = string.IsNullOrWhiteSpace(appToken) ? globalToken : appToken;
 
             if (string.IsNullOrEmpty(expected) || request.Headers["X-UpdateHub-Token"] != expected)
                 return Results.Unauthorized();

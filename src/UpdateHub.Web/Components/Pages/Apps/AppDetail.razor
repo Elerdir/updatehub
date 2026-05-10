@@ -47,6 +47,37 @@ else
         </div>
     }
 
+    @* Per-app CI token *@
+    <div class="card" style="margin-bottom:16px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+            <div>
+                <strong>Per-app CI Token</strong>
+                <span style="font-size:12px;color:var(--muted);margin-left:8px;">
+                    @(app.CiToken is not null ? "Custom token active — overrides global token" : "Using global CI token")
+                </span>
+            </div>
+            <div style="display:flex;gap:8px;">
+                @if (appTokenRevealed && app.CiToken is not null)
+                {
+                    <code style="font-size:12px;padding:4px 8px;background:var(--code-bg);border-radius:4px;">@app.CiToken</code>
+                    <button class="btn-ghost btn-sm" @onclick="() => Copy(app.CiToken!)">Copy</button>
+                }
+                @if (app.CiToken is null)
+                {
+                    <button class="btn-ghost btn-sm" @onclick="GenerateAppToken">Generate token</button>
+                }
+                else
+                {
+                    <button class="btn-ghost btn-sm" @onclick="() => appTokenRevealed = !appTokenRevealed">
+                        @(appTokenRevealed ? "Hide" : "Reveal")
+                    </button>
+                    <button class="btn-ghost btn-sm" @onclick="GenerateAppToken">Rotate</button>
+                    <button class="btn-danger-sm" @onclick="ClearAppToken">Remove</button>
+                }
+            </div>
+        </div>
+    </div>
+
     <div class="api-info card">
         <div class="api-info-title">API Endpoints</div>
         <div class="api-row">
@@ -172,6 +203,7 @@ else
 
     private bool confirmDelete;
     private bool copied;
+    private bool appTokenRevealed;
 
     protected override async Task OnParametersSetAsync() => await Load();
 
@@ -223,6 +255,22 @@ else
         StateHasChanged();
         await Task.Delay(2000);
         copied = false;
+    }
+
+    private async Task GenerateAppToken()
+    {
+        if (app is null) return;
+        await AdminSvc.RotateAppCiTokenAsync(app.Id);
+        await Load();
+        appTokenRevealed = true;
+    }
+
+    private async Task ClearAppToken()
+    {
+        if (app is null) return;
+        await AdminSvc.ClearAppCiTokenAsync(app.Id);
+        await Load();
+        appTokenRevealed = false;
     }
 
     private void ConfirmDelete() => confirmDelete = true;

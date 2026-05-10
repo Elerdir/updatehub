@@ -5,11 +5,12 @@ namespace UpdateHub.Infrastructure.Persistence;
 
 public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(options)
 {
-    public DbSet<App> Apps => Set<App>();
-    public DbSet<Release> Releases => Set<Release>();
-    public DbSet<Artifact> Artifacts => Set<Artifact>();
-    public DbSet<AppSetting> Settings => Set<AppSetting>();
+    public DbSet<App>          Apps          => Set<App>();
+    public DbSet<Release>      Releases      => Set<Release>();
+    public DbSet<Artifact>     Artifacts     => Set<Artifact>();
+    public DbSet<AppSetting>   Settings      => Set<AppSetting>();
     public DbSet<LoginAttempt> LoginAttempts => Set<LoginAttempt>();
+    public DbSet<AuditEntry>   AuditEntries  => Set<AuditEntry>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

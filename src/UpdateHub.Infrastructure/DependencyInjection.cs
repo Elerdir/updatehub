@@ -3,6 +3,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using UpdateHub.Application.Interfaces;
 using UpdateHub.Application.Services;
+using UpdateHub.Infrastructure.Email;
 using UpdateHub.Infrastructure.Persistence;
 using UpdateHub.Infrastructure.Persistence.Repositories;
 using UpdateHub.Infrastructure.Storage;
@@ -20,16 +21,20 @@ public static class DependencyInjection
 
         services.AddDbContext<AppDbContext>(o => o.UseSqlite($"Data Source={dbPath}"));
 
-        services.AddScoped<IAppRepository,      AppRepository>();
-        services.AddScoped<IReleaseRepository,  ReleaseRepository>();
-        services.AddScoped<IArtifactRepository, ArtifactRepository>();
-        services.AddScoped<ISettingsRepository, SettingsRepository>();
+        services.AddScoped<IAppRepository,          AppRepository>();
+        services.AddScoped<IReleaseRepository,      ReleaseRepository>();
+        services.AddScoped<IArtifactRepository,     ArtifactRepository>();
+        services.AddScoped<ISettingsRepository,     SettingsRepository>();
         services.AddScoped<ILoginAttemptRepository, LoginAttemptRepository>();
+        services.AddScoped<IAuditRepository,        AuditRepository>();
 
         services.AddSingleton<IArtifactStorage>(_ => new LocalArtifactStorage(storagePath));
 
+        services.AddScoped<IEmailService, SmtpEmailService>();
+        services.AddScoped<EmailNotificationService>();
         services.AddHttpClient("webhook");
         services.AddScoped<IWebhookService, WebhookService>();
+        services.AddScoped<AuditService>();
         services.AddScoped<AdminService>();
         services.AddScoped<SettingsService>();
         services.AddScoped<BruteForceProtectionService>();
@@ -40,9 +45,9 @@ public static class DependencyInjection
         return services;
     }
 
-    public static void EnsureDatabaseCreated(this IServiceProvider serviceProvider)
+    public static void MigrateDatabase(this IServiceProvider serviceProvider)
     {
         using var scope = serviceProvider.CreateScope();
-        scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.EnsureCreated();
+        scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.Migrate();
     }
 }

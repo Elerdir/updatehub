@@ -1,0 +1,40 @@
+@page "/login/totp"
+@attribute [AllowAnonymous]
+@layout UpdateHub.Web.Components.Layout.EmptyLayout
+
+<PageTitle>Two-Factor Authentication — UpdateHub</PageTitle>
+
+<div class="login-container">
+    <div class="login-card">
+        <div class="login-brand">UpdateHub</div>
+        <p style="text-align:center;color:var(--muted);margin-bottom:20px;font-size:14px;">
+            Enter the 6-digit code from your authenticator app.
+        </p>
+        <form method="post" action="/account/totp">
+            <AntiforgeryToken />
+            @if (HasError)
+            {
+                <div class="error">Invalid or expired code. Please try again.</div>
+            }
+            <div class="field">
+                <label for="code">Authenticator code</label>
+                <input id="code" type="text" name="code"
+                       inputmode="numeric" autocomplete="one-time-code"
+                       maxlength="6" placeholder="000000"
+                       style="letter-spacing:8px;font-size:20px;text-align:center;"
+                       required autofocus />
+            </div>
+            <button type="submit" class="btn-primary btn-block">Verify</button>
+        </form>
+        <div style="margin-top:16px;text-align:center;">
+            <a href="/login" style="font-size:13px;color:var(--muted);">← Back to login</a>
+        </div>
+    </div>
+</div>
+
+@code {
+    [SupplyParameterFromQuery(Name = "error")]
+    private string? ErrorCode { get; set; }
+
+    private bool HasError => ErrorCode == "1";
+}

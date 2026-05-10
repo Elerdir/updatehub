@@ -9,16 +9,20 @@ namespace UpdateHub.Application.Tests;
 
 public class AdminServiceTests
 {
-    private readonly IAppRepository _apps = Substitute.For<IAppRepository>();
-    private readonly IReleaseRepository _releases = Substitute.For<IReleaseRepository>();
+    private readonly IAppRepository      _apps      = Substitute.For<IAppRepository>();
+    private readonly IReleaseRepository  _releases  = Substitute.For<IReleaseRepository>();
     private readonly IArtifactRepository _artifacts = Substitute.For<IArtifactRepository>();
-    private readonly IArtifactStorage _storage = Substitute.For<IArtifactStorage>();
-    private readonly IWebhookService _webhook = Substitute.For<IWebhookService>();
+    private readonly IArtifactStorage    _storage   = Substitute.For<IArtifactStorage>();
+    private readonly IWebhookService     _webhook   = Substitute.For<IWebhookService>();
+    private readonly IAuditRepository    _auditRepo = Substitute.For<IAuditRepository>();
+    private readonly IEmailService       _emailSvc  = Substitute.For<IEmailService>();
     private readonly AdminService _sut;
 
     public AdminServiceTests()
     {
-        _sut = new AdminService(_apps, _releases, _artifacts, _storage, _webhook);
+        var audit = new AuditService(_auditRepo);
+        var email = new EmailNotificationService(_emailSvc);
+        _sut = new AdminService(_apps, _releases, _artifacts, _storage, _webhook, audit, email);
     }
 
     // ── CreateAppAsync ────────────────────────────────────────────────────────

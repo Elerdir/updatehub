@@ -31,8 +31,10 @@ public class PublicEndpointsTests : IClassFixture<TestWebApplicationFactory>
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
 
         var body = await response.Content.ReadFromJsonAsync<HealthResponse>();
-        Assert.Equal("ok", body!.Status);
-        Assert.NotEqual(default, body.Timestamp);
+        Assert.NotNull(body);
+        // New rich health response uses "Healthy" / "Degraded" / "Unhealthy"
+        Assert.True(body!.Status is "Healthy" or "Degraded",
+            $"Unexpected status: {body.Status}");
     }
 
     // ── /api/apps/{slug}/update ───────────────────────────────────────────────
