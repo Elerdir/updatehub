@@ -4,6 +4,7 @@ using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.Extensions.Diagnostics.HealthChecks;
 using NSubstitute;
 using UpdateHub.Application.Interfaces;
 using UpdateHub.Infrastructure.Persistence;
@@ -38,6 +39,10 @@ public class TestWebApplicationFactory : WebApplicationFactory<Program>, IAsyncD
             var storage = Substitute.For<IArtifactStorage>();
             storage.OpenRead(Arg.Any<string>()).Returns(new MemoryStream([1, 2, 3]));
             services.AddSingleton(storage);
+
+            // Replace health checks with no-ops — the real ones hit disk/DB paths
+            // that behave differently in in-memory test environments
+            services.Configure<HealthCheckServiceOptions>(opts => opts.Registrations.Clear());
         });
     }
 
