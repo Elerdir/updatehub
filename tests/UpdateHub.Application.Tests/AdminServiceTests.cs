@@ -13,11 +13,12 @@ public class AdminServiceTests
     private readonly IReleaseRepository _releases = Substitute.For<IReleaseRepository>();
     private readonly IArtifactRepository _artifacts = Substitute.For<IArtifactRepository>();
     private readonly IArtifactStorage _storage = Substitute.For<IArtifactStorage>();
+    private readonly IWebhookService _webhook = Substitute.For<IWebhookService>();
     private readonly AdminService _sut;
 
     public AdminServiceTests()
     {
-        _sut = new AdminService(_apps, _releases, _artifacts, _storage);
+        _sut = new AdminService(_apps, _releases, _artifacts, _storage, _webhook);
     }
 
     // ── CreateAppAsync ────────────────────────────────────────────────────────
@@ -97,7 +98,7 @@ public class AdminServiceTests
     [Fact]
     public async Task PublishReleaseAsync_SetsStatusAndPublishedAt()
     {
-        var release = new Release { Version = "1.0.0" };
+        var release = new Release { Version = "1.0.0", App = new App { Slug = "my-app" } };
         _releases.GetByIdAsync(release.Id).Returns(release);
         _releases.GetPublishedByAppChannelAsync(Arg.Any<Guid>(), Arg.Any<ReleaseChannel>(), Arg.Any<Guid>())
                  .Returns([]);
@@ -113,7 +114,7 @@ public class AdminServiceTests
     public async Task PublishReleaseAsync_ArchivesOlderRelease()
     {
         var old     = new Release { Status = ReleaseStatus.Published, Channel = ReleaseChannel.Stable };
-        var current = new Release { Channel = ReleaseChannel.Stable };
+        var current = new Release { Channel = ReleaseChannel.Stable, App = new App { Slug = "my-app" } };
         _releases.GetByIdAsync(current.Id).Returns(current);
         _releases.GetPublishedByAppChannelAsync(Arg.Any<Guid>(), Arg.Any<ReleaseChannel>(), current.Id)
                  .Returns([old]);

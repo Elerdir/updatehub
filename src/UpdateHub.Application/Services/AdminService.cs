@@ -8,7 +8,8 @@ public class AdminService(
     IAppRepository appRepo,
     IReleaseRepository releaseRepo,
     IArtifactRepository artifactRepo,
-    IArtifactStorage storage)
+    IArtifactStorage storage,
+    IWebhookService webhook)
 {
     public Task<List<App>> GetAppsAsync() => appRepo.GetAllWithReleasesAsync();
 
@@ -67,6 +68,10 @@ public class AdminService(
         r.Status      = ReleaseStatus.Published;
         r.PublishedAt = DateTime.UtcNow;
         await releaseRepo.UpdateAsync(r);
+
+        await webhook.NotifyPublishedAsync(
+            r.App.Slug, r.Version, r.ReleaseNotes,
+            r.Channel.ToString().ToLower());
     }
 
     public async Task ArchiveReleaseAsync(Guid releaseId)

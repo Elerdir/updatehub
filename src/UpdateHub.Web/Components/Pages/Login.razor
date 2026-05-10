@@ -9,7 +9,11 @@
         <div class="login-brand">UpdateHub</div>
         <form method="post" action="/account/login">
             <AntiforgeryToken />
-            @if (HasError)
+            @if (IsBlocked)
+            {
+                <div class="error">Your IP address has been blocked due to too many failed login attempts. Contact the administrator.</div>
+            }
+            else if (HasError)
             {
                 <div class="error">Invalid username or password.</div>
             }
@@ -28,7 +32,8 @@
 
 @code {
     [SupplyParameterFromQuery(Name = "error")]
-    private int? ErrorCode { get; set; }
+    private string? ErrorCode { get; set; }
 
-    private bool HasError => ErrorCode == 1;
+    private bool HasError    => ErrorCode == "1";
+    private bool IsBlocked   => ErrorCode == "blocked";
 }

@@ -28,6 +28,8 @@ public static class DependencyInjection
 
         services.AddSingleton<IArtifactStorage>(_ => new LocalArtifactStorage(storagePath));
 
+        services.AddHttpClient("webhook");
+        services.AddScoped<IWebhookService, WebhookService>();
         services.AddScoped<AdminService>();
         services.AddScoped<SettingsService>();
         services.AddScoped<BruteForceProtectionService>();

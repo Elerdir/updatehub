@@ -2,6 +2,7 @@ using System.Security.Claims;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.RateLimiting;
 using Scalar.AspNetCore;
 using UpdateHub.Application.Services;
@@ -10,6 +11,13 @@ using UpdateHub.Web.Components;
 using UpdateHub.Web.Endpoints;
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+{
+    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
+    options.KnownIPNetworks.Clear();
+    options.KnownProxies.Clear();
+});
 
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
@@ -60,8 +68,22 @@ if (!app.Environment.IsDevelopment())
     app.UseHttpsRedirection();
 }
 
+app.UseForwardedHeaders();
+
 app.UseStaticFiles();
 app.UseRateLimiter();
+
+// Security headers
+app.Use(async (ctx, next) =>
+{
+    ctx.Response.Headers["X-Content-Type-Options"] = "nosniff";
+    ctx.Response.Headers["X-Frame-Options"]        = "DENY";
+    ctx.Response.Headers["X-XSS-Protection"]       = "1; mode=block";
+    ctx.Response.Headers["Referrer-Policy"]        = "strict-origin-when-cross-origin";
+    ctx.Response.Headers["Permissions-Policy"]     = "camera=(), microphone=(), geolocation=()";
+    await next();
+});
+
 app.UseAuthentication();
 app.UseAuthorization();
 app.UseAntiforgery();
