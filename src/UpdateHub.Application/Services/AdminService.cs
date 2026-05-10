@@ -55,6 +55,15 @@ public class AdminService(
     {
         var r = await releaseRepo.GetByIdAsync(releaseId)
             ?? throw new InvalidOperationException("Release not found");
+
+        // Archive any previously published release for the same app + channel
+        var older = await releaseRepo.GetPublishedByAppChannelAsync(r.AppId, r.Channel, releaseId);
+        foreach (var old in older)
+        {
+            old.Status = ReleaseStatus.Archived;
+            await releaseRepo.UpdateAsync(old);
+        }
+
         r.Status      = ReleaseStatus.Published;
         r.PublishedAt = DateTime.UtcNow;
         await releaseRepo.UpdateAsync(r);
@@ -105,12 +114,15 @@ public class AdminService(
         await artifactRepo.DeleteAsync(a);
     }
 
-    public async Task<(int apps, int published)> GetStatsAsync()
+    public async Task<(int apps, int published, long downloads)> GetStatsAsync()
     {
         var all = await appRepo.GetAllWithReleasesAsync();
-        var apps = all.Count;
+        var apps      = all.Count;
         var published = all.SelectMany(a => a.Releases)
                            .Count(r => r.Status == ReleaseStatus.Published);
-        return (apps, published);
+        var downloads = all.SelectMany(a => a.Releases)
+                           .SelectMany(r => r.Artifacts)
+                           .Sum(a => a.DownloadCount);
+        return (apps, published, downloads);
     }
 }

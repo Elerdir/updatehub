@@ -4,6 +4,7 @@
 @inject AdminService AdminSvc
 @inject NavigationManager Nav
 @inject IConfiguration Config
+@inject IJSRuntime JS
 @using UpdateHub.Domain.Enums
 
 <PageTitle>@(app?.Name ?? "App") — UpdateHub</PageTitle>
@@ -50,12 +51,15 @@ else
         <div class="api-info-title">API Endpoints</div>
         <div class="api-row">
             <span class="api-method">GET</span>
-            <code>@BaseUrl/api/apps/@app.Slug/update?version=1.0.0&amp;platform=windows&amp;arch=x64</code>
+            <code>@UpdateCheckUrl</code>
+            <button class="btn-copy" title="Copy" @onclick="() => Copy(UpdateCheckUrl)">⎘</button>
         </div>
         <div class="api-row">
             <span class="api-method">GET</span>
-            <code>@BaseUrl/api/apps/@app.Slug/tauri/latest.json</code>
+            <code>@TauriUrl</code>
+            <button class="btn-copy" title="Copy" @onclick="() => Copy(TauriUrl)">⎘</button>
         </div>
+        @if (copied) { <div style="font-size:12px;color:var(--success);margin-top:6px;">Copied!</div> }
     </div>
 
     <div class="section-header">
@@ -150,7 +154,9 @@ else
     [Parameter] public string Slug { get; set; } = "";
 
     private App? app;
-    private string BaseUrl => Config["UpdateHub:BaseUrl"] ?? "https://your-updatehub-url";
+    private string BaseUrl       => Config["UpdateHub:BaseUrl"] ?? "https://your-updatehub-url";
+    private string UpdateCheckUrl => $"{BaseUrl}/api/apps/{app?.Slug}/update?version=1.0.0&platform=windows&arch=x64";
+    private string TauriUrl       => $"{BaseUrl}/api/apps/{app?.Slug}/tauri/latest.json";
 
     private bool showEditForm;
     private string editName = "";
@@ -165,6 +171,7 @@ else
     private string? releaseError;
 
     private bool confirmDelete;
+    private bool copied;
 
     protected override async Task OnParametersSetAsync() => await Load();
 
@@ -207,6 +214,15 @@ else
         newVersion = "";
         newNotes = releaseError = null;
         newMandatory = false;
+    }
+
+    private async Task Copy(string text)
+    {
+        await JS.InvokeVoidAsync("navigator.clipboard.writeText", text);
+        copied = true;
+        StateHasChanged();
+        await Task.Delay(2000);
+        copied = false;
     }
 
     private void ConfirmDelete() => confirmDelete = true;

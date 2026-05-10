@@ -18,6 +18,10 @@
         <span class="stat-value">@publishedCount</span>
         <span class="stat-label">Published Releases</span>
     </div>
+    <div class="stat-card">
+        <span class="stat-value">@totalDownloads</span>
+        <span class="stat-label">Total Downloads</span>
+    </div>
 </div>
 
 @if (apps is not null && apps.Count > 0)
@@ -66,10 +70,11 @@ else if (apps is not null)
     private List<App>? apps;
     private int appCount;
     private int publishedCount;
+    private long totalDownloads;
 
     protected override async Task OnInitializedAsync()
     {
         apps = await AdminSvc.GetAppsAsync();
-        (appCount, publishedCount) = await AdminSvc.GetStatsAsync();
+        (appCount, publishedCount, totalDownloads) = await AdminSvc.GetStatsAsync();
     }
 }

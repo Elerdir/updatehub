@@ -99,12 +99,29 @@ public class AdminServiceTests
     {
         var release = new Release { Version = "1.0.0" };
         _releases.GetByIdAsync(release.Id).Returns(release);
+        _releases.GetPublishedByAppChannelAsync(Arg.Any<Guid>(), Arg.Any<ReleaseChannel>(), Arg.Any<Guid>())
+                 .Returns([]);
 
         await _sut.PublishReleaseAsync(release.Id);
 
         Assert.Equal(ReleaseStatus.Published, release.Status);
         Assert.NotNull(release.PublishedAt);
         await _releases.Received(1).UpdateAsync(release);
+    }
+
+    [Fact]
+    public async Task PublishReleaseAsync_ArchivesOlderRelease()
+    {
+        var old     = new Release { Status = ReleaseStatus.Published, Channel = ReleaseChannel.Stable };
+        var current = new Release { Channel = ReleaseChannel.Stable };
+        _releases.GetByIdAsync(current.Id).Returns(current);
+        _releases.GetPublishedByAppChannelAsync(Arg.Any<Guid>(), Arg.Any<ReleaseChannel>(), current.Id)
+                 .Returns([old]);
+
+        await _sut.PublishReleaseAsync(current.Id);
+
+        Assert.Equal(ReleaseStatus.Archived, old.Status);
+        Assert.Equal(ReleaseStatus.Published, current.Status);
     }
 
     [Fact]
@@ -178,10 +195,11 @@ public class AdminServiceTests
         };
         _apps.GetAllWithReleasesAsync().Returns(apps);
 
-        var (appCount, published) = await _sut.GetStatsAsync();
+        var (appCount, published, downloads) = await _sut.GetStatsAsync();
 
         Assert.Equal(2, appCount);
         Assert.Equal(2, published);
+        Assert.Equal(0, downloads);
     }
 
     // ── AddArtifactAsync ──────────────────────────────────────────────────────

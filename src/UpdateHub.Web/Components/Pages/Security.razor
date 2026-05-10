@@ -1,0 +1,184 @@
+@page "/security"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@inject BruteForceProtectionService BruteForceSvc
+@using UpdateHub.Domain.Entities
+
+<PageTitle>Security — UpdateHub</PageTitle>
+
+<div class="page-header">
+    <h1>Security</h1>
+</div>
+
+@if (attempts is not null)
+{
+    <div class="stats" style="margin-bottom:24px;">
+        <div class="stat-card">
+            <span class="stat-value">@attempts.Count(a => a.IsBlocked)</span>
+            <span class="stat-label">Blocked IPs</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-value">@attempts.Count(a => !a.IsBlocked && a.FailedAttempts > 0)</span>
+            <span class="stat-label">Suspicious IPs</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-value">@BruteForceProtectionService.MaxFailedAttempts</span>
+            <span class="stat-label">Auto-block threshold</span>
+        </div>
+    </div>
+
+    <div class="section-header">
+        <h2>Login Attempts</h2>
+        <div style="display:flex;gap:8px;align-items:center;">
+            <input @bind="filterIp" @bind:event="oninput"
+                   placeholder="Filter by IP…" style="width:200px;padding:6px 10px;" />
+            <button class="btn-ghost btn-sm" @onclick="Reload">Refresh</button>
+        </div>
+    </div>
+
+    @if (!string.IsNullOrWhiteSpace(manualBlockIp))
+    {
+        <div class="card" style="margin-bottom:16px;">
+            <div style="display:flex;align-items:center;gap:12px;">
+                <input @bind="manualBlockIp" placeholder="IP address" style="width:200px;padding:6px 10px;" />
+                <button class="btn-danger btn-sm" @onclick="ManualBlock">Block this IP</button>
+                <button class="btn-ghost btn-sm" @onclick="() => manualBlockIp = null">Cancel</button>
+            </div>
+        </div>
+    }
+    else
+    {
+        <div style="margin-bottom:16px;">
+            <button class="btn-danger-outline btn-sm" @onclick="() => manualBlockIp = string.Empty">+ Block IP manually…</button>
+        </div>
+    }
+
+    @if (!Filtered.Any())
+    {
+        <div class="empty-state"><p>No login attempts recorded yet.</p></div>
+    }
+    else
+    {
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>IP Address</th>
+                    <th>Status</th>
+                    <th>Failed</th>
+                    <th>First Seen</th>
+                    <th>Last Attempt</th>
+                    <th>Unblocked At</th>
+                    <th>User Agent</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var a in Filtered)
+                {
+                    <tr>
+                        <td><code>@a.IpAddress</code></td>
+                        <td>@StatusBadge(a)</td>
+                        <td>@a.FailedAttempts</td>
+                        <td title="@a.FirstAttemptAt.ToString("o")">@FormatDate(a.FirstAttemptAt)</td>
+                        <td title="@a.LastAttemptAt.ToString("o")">@FormatDate(a.LastAttemptAt)</td>
+                        <td>@(a.UnblockedAt.HasValue ? FormatDate(a.UnblockedAt.Value) : "—")</td>
+                        <td><span class="ua-cell" title="@a.LastUserAgent">@TruncateUa(a.LastUserAgent)</span></td>
+                        <td>
+                            <div style="display:flex;gap:6px;">
+                                @if (a.IsBlocked)
+                                {
+                                    <button class="btn-sm btn-outline" @onclick="() => Unblock(a.IpAddress)">Unblock</button>
+                                }
+                                else
+                                {
+                                    <button class="btn-danger-sm" @onclick="() => Block(a.IpAddress)">Block</button>
+                                }
+                                <button class="btn-ghost btn-sm" @onclick="() => DeleteRecord(a.IpAddress)"
+                                        title="Remove record">✕</button>
+                            </div>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+}
+else
+{
+    <p class="loading">Loading…</p>
+}
+
+@code {
+    private List<LoginAttempt>? attempts;
+    private string? filterIp;
+    private string? manualBlockIp;
+
+    private List<LoginAttempt> Filtered =>
+        attempts is null ? [] :
+        string.IsNullOrWhiteSpace(filterIp)
+            ? attempts
+            : attempts.Where(a => a.IpAddress.Contains(filterIp.Trim())).ToList();
+
+    protected override async Task OnInitializedAsync() => await Reload();
+
+    private async Task Reload()
+    {
+        attempts = await BruteForceSvc.GetAllAsync();
+    }
+
+    private async Task Unblock(string ip)
+    {
+        await BruteForceSvc.UnblockAsync(ip);
+        await Reload();
+    }
+
+    private async Task Block(string ip)
+    {
+        await BruteForceSvc.BlockManuallyAsync(ip);
+        await Reload();
+    }
+
+    private async Task ManualBlock()
+    {
+        if (string.IsNullOrWhiteSpace(manualBlockIp)) return;
+        await BruteForceSvc.BlockManuallyAsync(manualBlockIp.Trim());
+        manualBlockIp = null;
+        await Reload();
+    }
+
+    private async Task DeleteRecord(string ip)
+    {
+        await BruteForceSvc.DeleteRecordAsync(ip);
+        await Reload();
+    }
+
+    private static RenderFragment StatusBadge(LoginAttempt a) => __builder =>
+    {
+        if (a.IsBlocked)
+        {
+            var label = a.IsManualBlock ? "Blocked (manual)" : "Blocked (auto)";
+            var cls   = "badge danger";
+            __builder.AddMarkupContent(0, $"<span class=\"{cls}\">{label}</span>");
+        }
+        else if (a.FailedAttempts > 0)
+        {
+            __builder.AddMarkupContent(0, $"<span class=\"badge warning\">Suspicious ({a.FailedAttempts}x)</span>");
+        }
+        else
+        {
+            __builder.AddMarkupContent(0, "<span class=\"badge published\">OK</span>");
+        }
+    };
+
+    private static string FormatDate(DateTime dt)
+    {
+        var diff = DateTime.UtcNow - dt;
+        return diff.TotalDays < 1
+            ? $"{(int)diff.TotalHours}h ago"
+            : dt.ToString("yyyy-MM-dd HH:mm");
+    }
+
+    private static string TruncateUa(string? ua) =>
+        ua is null ? "—" :
+        ua.Length > 50 ? ua[..47] + "…" : ua;
+}

@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using UpdateHub.Application.Interfaces;
 using UpdateHub.Application.Services;
 
@@ -25,7 +26,7 @@ public static class PublicEndpoints
                     kvp => kvp.Key,
                     kvp => new { signature = kvp.Value.Signature, url = kvp.Value.Url })
             });
-        });
+        }).RequireRateLimiting("public-api");
 
         app.MapGet("/api/apps/{appSlug}/update", async (
             string appSlug,
@@ -51,7 +52,7 @@ public static class PublicEndpoints
                 is_mandatory  = result.IsMandatory,
                 channel       = result.Channel
             });
-        });
+        }).RequireRateLimiting("public-api");
 
         app.MapGet("/api/downloads/{artifactId:guid}", async (
             Guid artifactId,

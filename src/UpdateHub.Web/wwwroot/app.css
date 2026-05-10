@@ -344,6 +344,17 @@ input:focus, select:focus, textarea:focus {
 .markdown-body hr { border: none; border-top: 1px solid var(--border); margin: 16px 0; }
 .markdown-body blockquote { border-left: 3px solid var(--border); padding-left: 12px; color: var(--muted); margin: 0 0 10px; }
 
+/* ===== Copy button ===== */
+.btn-copy { background: none; border: 1px solid var(--border); border-radius: 4px; color: var(--muted); cursor: pointer; font-size: 14px; padding: 2px 6px; margin-left: 6px; transition: color .15s, border-color .15s; }
+.btn-copy:hover { color: var(--text); border-color: var(--primary); }
+.api-row { display: flex; align-items: center; gap: 0; margin-bottom: 8px; }
+.api-row code { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ===== Security page ===== */
+.badge.danger  { background: rgba(239,68,68,0.15);  color: var(--danger); }
+.badge.warning { background: rgba(245,158,11,0.15); color: var(--warning); }
+.ua-cell { display: block; max-width: 220px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--muted); font-size: 12px; cursor: help; }
+
 /* ===== Settings ===== */
 .token-display { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
 .token-box { flex: 1; background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 12px; font-family: 'Cascadia Code','Fira Code',monospace; font-size: 13px; color: var(--text); word-break: break-all; }
