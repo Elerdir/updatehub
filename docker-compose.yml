@@ -1,14 +1,36 @@
 services:
   updatehub:
-    build: .
+    image: ghcr.io/elerdir/updatehub:latest   # use pre-built image from GHCR
+    # build: .                                 # or build locally
     ports:
       - "8080:8080"
     volumes:
-      - ./data:/app/data
+      - ./data:/app/data     # SQLite DB + artifacts
+      - ./logs:/app/logs     # Serilog rolling log files
     environment:
-      - UpdateHub__BaseUrl=http://localhost:8080
-      - UpdateHub__CiToken=CHANGE_ME
+      # ── Required ────────────────────────────────────────────────────────────
+      - UpdateHub__BaseUrl=https://your-domain.com
       - UpdateHub__Admin__Username=admin
-      # Generate hash: dotnet script or use https://bcrypt.online/
+      # Generate: cd tools/GenerateHash && dotnet run -- yourpassword
       - UpdateHub__Admin__PasswordHash=CHANGE_ME_BCRYPT_HASH
+
+      # ── CI upload token (override in DB via Settings page after first run) ──
+      - UpdateHub__CiToken=CHANGE_ME_RANDOM_TOKEN
+
+      # ── Optional: webhook on publish ────────────────────────────────────────
+      - UpdateHub__WebhookUrl=
+
+      # ── Optional: SMTP email notifications ──────────────────────────────────
+      - UpdateHub__Smtp__Host=
+      - UpdateHub__Smtp__Port=587
+      - UpdateHub__Smtp__From=
+      - UpdateHub__Smtp__Username=
+      - UpdateHub__Smtp__Password=
+      - UpdateHub__Smtp__To=
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 30s
+      retries: 3
