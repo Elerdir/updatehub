@@ -147,7 +147,7 @@ In `tauri.conf.json`:
 
 ### GitHub Actions upload example
 
-See [`.github/workflows/upload-release.yml`](.github/workflows/upload-release.yml) for a complete example.
+See [`docs/upload-release.example.yml`](docs/upload-release.example.yml) for a complete example — copy it into your app's repo under `.github/workflows/`.
 
 Required secrets in your app repo:
 - `UPDATEHUB_URL` — your server URL
