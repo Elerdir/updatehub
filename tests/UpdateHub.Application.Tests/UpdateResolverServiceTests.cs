@@ -124,6 +124,42 @@ public class UpdateResolverServiceTests
     }
 
     [Fact]
+    public async Task CheckUpdateAsync_StableIsNewerThanItsPreRelease()
+    {
+        // 1.0.0 > 1.0.0-beta.1 per semver precedence
+        var release = PublishedRelease("1.0.0");
+        _releases.GetLatestPublishedAsync("my-app", ReleaseChannel.Stable).Returns(release);
+
+        var result = await _sut.CheckUpdateAsync("my-app", "1.0.0-beta.1", null, null, null);
+
+        Assert.True(result!.HasUpdate);
+    }
+
+    [Fact]
+    public async Task CheckUpdateAsync_NoUpdate_WhenCurrentIsNewerPreRelease()
+    {
+        // running 2.0.0 stable, server only has 2.0.0-rc.1 → no update
+        var release = PublishedRelease("2.0.0-rc.1");
+        _releases.GetLatestPublishedAsync("my-app", ReleaseChannel.Stable).Returns(release);
+
+        var result = await _sut.CheckUpdateAsync("my-app", "2.0.0", null, null, null);
+
+        Assert.False(result!.HasUpdate);
+    }
+
+    [Fact]
+    public async Task CheckUpdateAsync_OrdersPreReleaseTagsCorrectly()
+    {
+        // 1.2.0-beta.2 > 1.2.0-beta.10 would be true under naive string compare — verify it isn't
+        var release = PublishedRelease("1.2.0-beta.10");
+        _releases.GetLatestPublishedAsync("my-app", ReleaseChannel.Stable).Returns(release);
+
+        var result = await _sut.CheckUpdateAsync("my-app", "1.2.0-beta.2", null, null, null);
+
+        Assert.True(result!.HasUpdate);
+    }
+
+    [Fact]
     public async Task CheckUpdateAsync_ReturnsMandatoryFlag()
     {
         var release = PublishedRelease("2.0.0");

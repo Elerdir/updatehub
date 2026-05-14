@@ -3,7 +3,10 @@ using UpdateHub.Domain.Entities;
 
 namespace UpdateHub.Application.Services;
 
-public class BruteForceProtectionService(ILoginAttemptRepository repo, EmailNotificationService email)
+public class BruteForceProtectionService(
+    ILoginAttemptRepository repo,
+    EmailNotificationService email,
+    INotificationQueue notifications)
 {
     public const int MaxFailedAttempts = 5;
 
@@ -37,7 +40,7 @@ public class BruteForceProtectionService(ILoginAttemptRepository repo, EmailNoti
         await repo.UpsertAsync(a);
 
         if (justBlocked)
-            await email.SendIpBlockedAsync(ip, isManual: false);
+            notifications.Enqueue(_ => email.SendIpBlockedAsync(ip, isManual: false));
     }
 
     public async Task RecordSuccessAsync(string ip)

@@ -16,13 +16,14 @@ public class AdminServiceTests
     private readonly IWebhookService     _webhook   = Substitute.For<IWebhookService>();
     private readonly IAuditRepository    _auditRepo = Substitute.For<IAuditRepository>();
     private readonly IEmailService       _emailSvc  = Substitute.For<IEmailService>();
+    private readonly INotificationQueue  _queue     = Substitute.For<INotificationQueue>();
     private readonly AdminService _sut;
 
     public AdminServiceTests()
     {
         var audit = new AuditService(_auditRepo);
         var email = new EmailNotificationService(_emailSvc);
-        _sut = new AdminService(_apps, _releases, _artifacts, _storage, _webhook, audit, email);
+        _sut = new AdminService(_apps, _releases, _artifacts, _storage, _webhook, audit, email, _queue);
     }
 
     // ── CreateAppAsync ────────────────────────────────────────────────────────

@@ -22,17 +22,31 @@ public class LocalArtifactStorage : IArtifactStorage
         var safeFileName = Path.GetFileName(fileName);
         var storedPath   = Path.Combine(dir, safeFileName);
 
-        var buffer = new byte[81920];
-        using var memStream = new MemoryStream();
-        int bytesRead;
-        while ((bytesRead = await stream.ReadAsync(buffer)) > 0)
-            memStream.Write(buffer, 0, bytesRead);
+        // Stream straight to disk, hashing as we go — never buffers the whole
+        // file in memory (installers can be hundreds of MB).
+        using var sha = SHA256.Create();
+        long fileSize;
+        try
+        {
+            await using var fileStream = new FileStream(
+                storedPath, FileMode.Create, FileAccess.Write, FileShare.None,
+                bufferSize: 81920, useAsync: true);
+            await using var cryptoStream = new CryptoStream(
+                fileStream, sha, CryptoStreamMode.Write);
 
-        var bytes = memStream.ToArray();
-        var hash  = Convert.ToHexString(SHA256.HashData(bytes)).ToLower();
+            await stream.CopyToAsync(cryptoStream);
+            await cryptoStream.FlushFinalBlockAsync();
+            fileSize = fileStream.Length;
+        }
+        catch
+        {
+            // Don't leave a partial file behind on failure.
+            if (File.Exists(storedPath)) File.Delete(storedPath);
+            throw;
+        }
 
-        await File.WriteAllBytesAsync(storedPath, bytes);
-        return (storedPath, hash, bytes.Length);
+        var hash = Convert.ToHexString(sha.Hash!).ToLower();
+        return (storedPath, hash, fileSize);
     }
 
     public void Delete(string storedPath)

@@ -2,7 +2,7 @@ using UpdateHub.Application.Interfaces;
 
 namespace UpdateHub.Application.Services;
 
-public class SettingsService(ISettingsRepository repo)
+public class SettingsService(ISettingsRepository repo, ISecretProtector protector)
 {
     private const string CiTokenKey        = "CiToken";
     private const string AdminPasswordKey   = "AdminPasswordHash";
@@ -34,11 +34,26 @@ public class SettingsService(ISettingsRepository repo)
         return val == "true";
     }
 
-    public Task<string?> GetTotpSecretAsync() => repo.GetAsync(TotpSecretKey);
+    public async Task<string?> GetTotpSecretAsync()
+    {
+        var stored = await repo.GetAsync(TotpSecretKey);
+        if (string.IsNullOrEmpty(stored)) return stored;
+
+        try
+        {
+            return protector.Unprotect(stored);
+        }
+        catch
+        {
+            // Pre-encryption installs stored the secret as plaintext — fall back
+            // so existing 2FA setups keep working.
+            return stored;
+        }
+    }
 
     public async Task EnableTotpAsync(string secret)
     {
-        await repo.SetAsync(TotpSecretKey, secret);
+        await repo.SetAsync(TotpSecretKey, protector.Protect(secret));
         await repo.SetAsync(TotpEnabledKey, "true");
     }
 

@@ -11,7 +11,8 @@ public class AdminService(
     IArtifactStorage        storage,
     IWebhookService         webhook,
     AuditService            audit,
-    EmailNotificationService email)
+    EmailNotificationService email,
+    INotificationQueue      notifications)
 {
     public Task<List<App>> GetAppsAsync() => appRepo.GetAllWithReleasesAsync();
 
@@ -33,8 +34,7 @@ public class AdminService(
 
     public async Task UpdateAppAsync(Guid id, string name, string? description)
     {
-        var app = await appRepo.GetAllWithReleasesAsync()
-            .ContinueWith(t => t.Result.FirstOrDefault(a => a.Id == id))
+        var app = await appRepo.GetByIdAsync(id)
             ?? throw new InvalidOperationException("App not found");
         app.Name        = name.Trim();
         app.Description = description?.Trim();
@@ -44,7 +44,7 @@ public class AdminService(
 
     public async Task DeleteAppAsync(Guid id)
     {
-        var app = (await appRepo.GetAllWithReleasesAsync()).FirstOrDefault(a => a.Id == id);
+        var app = await appRepo.GetByIdAsync(id);
         if (app is null) return;
         await appRepo.DeleteAsync(app);
         await audit.LogAsync("DeleteApp", entityType: "App", entityId: id.ToString(), details: app.Slug);
@@ -85,9 +85,17 @@ public class AdminService(
         await audit.LogAsync("PublishRelease", entityType: "Release", entityId: releaseId.ToString(),
             details: $"{r.App.Slug} v{r.Version} ({r.Channel})");
 
+        // Webhook + email run on the background queue — publishing returns immediately
+        // even if SMTP/the webhook endpoint is slow or unreachable.
         var channel = r.Channel.ToString().ToLower();
-        await webhook.NotifyPublishedAsync(r.App.Slug, r.Version, r.ReleaseNotes, channel);
-        await email.SendReleasePublishedAsync(r.App.Slug, r.Version, channel);
+        var slug    = r.App.Slug;
+        var version = r.Version;
+        var notes   = r.ReleaseNotes;
+        notifications.Enqueue(async _ =>
+        {
+            await webhook.NotifyPublishedAsync(slug, version, notes, channel);
+            await email.SendReleasePublishedAsync(slug, version, channel);
+        });
     }
 
     public async Task ArchiveReleaseAsync(Guid releaseId)
@@ -134,6 +142,54 @@ public class AdminService(
         return artifact;
     }
 
+    /// <summary>
+    /// CI upload path: finds an existing draft/release for the given version+channel
+    /// or creates a new Draft, then stores the artifact. Everything is audited with
+    /// actor "ci" so token-based uploads show up in the audit log.
+    /// </summary>
+    public async Task<(Release release, Artifact artifact)> IngestCiUploadAsync(
+        App app, string version, ReleaseChannel channel, string? notes, bool mandatory,
+        Stream stream, string fileName, string platform, string arch, string? signature)
+    {
+        var release = app.Releases.FirstOrDefault(r =>
+            r.Version == version.Trim() && r.Channel == channel);
+
+        if (release is null)
+        {
+            release = await releaseRepo.CreateAsync(new Release
+            {
+                AppId        = app.Id,
+                Version      = version.Trim(),
+                Channel      = channel,
+                Status       = ReleaseStatus.Draft,
+                ReleaseNotes = string.IsNullOrWhiteSpace(notes) ? null : notes.Trim(),
+                IsMandatory  = mandatory
+            });
+            await audit.LogAsync("CreateRelease", actor: "ci", entityType: "Release",
+                entityId: release.Id.ToString(), details: $"{version.Trim()} / {channel}");
+        }
+
+        var (storedPath, sha256, fileSize) = await storage.StoreAsync(
+            stream, fileName, app.Slug, version);
+
+        var artifact = await artifactRepo.CreateAsync(new Artifact
+        {
+            ReleaseId     = release.Id,
+            Platform      = platform.Trim().ToLower(),
+            Architecture  = arch.Trim().ToLower(),
+            FileName      = Path.GetFileName(fileName),
+            StoredPath    = storedPath,
+            Sha256        = sha256,
+            Signature     = string.IsNullOrWhiteSpace(signature) ? null : signature.Trim(),
+            FileSizeBytes = fileSize
+        });
+
+        await audit.LogAsync("UploadArtifact", actor: "ci", entityType: "Artifact",
+            entityId: artifact.Id.ToString(), details: $"{Path.GetFileName(fileName)} ({platform}/{arch})");
+
+        return (release, artifact);
+    }
+
     public async Task DeleteArtifactAsync(Guid artifactId)
     {
         var a = await artifactRepo.GetByIdAsync(artifactId);
@@ -160,7 +216,7 @@ public class AdminService(
 
     public async Task<string> RotateAppCiTokenAsync(Guid appId)
     {
-        var app = (await appRepo.GetAllWithReleasesAsync()).FirstOrDefault(a => a.Id == appId)
+        var app = await appRepo.GetByIdAsync(appId)
             ?? throw new InvalidOperationException("App not found");
         app.CiToken = GenerateToken();
         await appRepo.UpdateAsync(app);
@@ -170,7 +226,7 @@ public class AdminService(
 
     public async Task ClearAppCiTokenAsync(Guid appId)
     {
-        var app = (await appRepo.GetAllWithReleasesAsync()).FirstOrDefault(a => a.Id == appId)
+        var app = await appRepo.GetByIdAsync(appId)
             ?? throw new InvalidOperationException("App not found");
         app.CiToken = null;
         await appRepo.UpdateAsync(app);

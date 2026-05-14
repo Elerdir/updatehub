@@ -66,6 +66,6 @@ public static class PublicEndpoints
 
             var stream = storage.OpenRead(artifact.StoredPath);
             return Results.File(stream, "application/octet-stream", artifact.FileName);
-        });
+        }).RequireRateLimiting("public-api");
     }
 }

@@ -1,3 +1,4 @@
+using Semver;
 using UpdateHub.Application.Interfaces;
 using UpdateHub.Application.Models;
 using UpdateHub.Domain.Entities;
@@ -77,9 +78,21 @@ public class UpdateResolverService(
 
     private static bool IsNewer(string current, string latest)
     {
-        if (Version.TryParse(current.TrimStart('v'), out var c) &&
-            Version.TryParse(latest.TrimStart('v'), out var l))
-            return l > c;
-        return string.Compare(latest, current, StringComparison.OrdinalIgnoreCase) > 0;
+        var currentTrim = current.TrimStart('v', 'V');
+        var latestTrim  = latest.TrimStart('v', 'V');
+
+        // Prefer full semver comparison — correctly handles pre-release tags
+        // (1.0.0-beta < 1.0.0) and build metadata.
+        if (SemVersion.TryParse(currentTrim, SemVersionStyles.Any, out var c) &&
+            SemVersion.TryParse(latestTrim, SemVersionStyles.Any, out var l))
+            return l.ComparePrecedenceTo(c) > 0;
+
+        // Fall back to System.Version for plain numeric versions, then to
+        // an ordinal string compare as a last resort.
+        if (Version.TryParse(currentTrim, out var cv) &&
+            Version.TryParse(latestTrim, out var lv))
+            return lv > cv;
+
+        return string.Compare(latestTrim, currentTrim, StringComparison.OrdinalIgnoreCase) > 0;
     }
 }

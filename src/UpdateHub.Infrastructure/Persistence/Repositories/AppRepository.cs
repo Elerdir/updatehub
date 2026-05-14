@@ -13,6 +13,11 @@ public class AppRepository(AppDbContext db) : IAppRepository
           .OrderBy(a => a.Name)
           .ToListAsync();
 
+    public Task<App?> GetByIdAsync(Guid id) =>
+        db.Apps
+          .Include(a => a.Releases).ThenInclude(r => r.Artifacts)
+          .FirstOrDefaultAsync(a => a.Id == id);
+
     public Task<App?> GetBySlugAsync(string slug) =>
         db.Apps
           .Include(a => a.Releases).ThenInclude(r => r.Artifacts)

@@ -22,8 +22,13 @@
     </PackageReference>
     <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="9.0.5" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="9.0.5" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="9.0.5" />
     <PackageReference Include="MailKit" Version="4.11.0" />
     <PackageReference Include="Microsoft.Extensions.Http" Version="9.0.5" />
+    <PackageReference Include="Microsoft.AspNetCore.DataProtection" Version="9.0.5" />
+    <PackageReference Include="Microsoft.AspNetCore.DataProtection.Extensions" Version="9.0.5" />
+    <!-- Pin transitive dep to a patched version (NU1903: GHSA-w3x6-4m5h-cxqf / GHSA-37gx-xxp4-5rgx) -->
+    <PackageReference Include="System.Security.Cryptography.Xml" Version="9.0.16" />
   </ItemGroup>
 
 </Project>

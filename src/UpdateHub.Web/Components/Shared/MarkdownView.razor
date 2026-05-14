@@ -15,8 +15,11 @@
             : Markdown.ToHtml(Content, Pipeline);
     }
 
+    // DisableHtml() strips raw HTML so release notes (which can be set via the
+    // token-authenticated CI endpoint) cannot inject <script> into the admin UI.
     private static readonly MarkdownPipeline Pipeline = new MarkdownPipelineBuilder()
         .UseAutoLinks()
         .UseEmphasisExtras()
+        .DisableHtml()
         .Build();
 }
