@@ -10,7 +10,10 @@ public class DiskSpaceHealthCheck(string path, long minimumFreeBytes) : IHealthC
     {
         try
         {
-            var drive  = new DriveInfo(Path.GetFullPath(path));
+            // DriveInfo on Linux expects a mount point ("/"), not an arbitrary
+            // path — so resolve the root of the filesystem the path lives on.
+            var root   = Path.GetPathRoot(Path.GetFullPath(path));
+            var drive  = new DriveInfo(string.IsNullOrEmpty(root) ? "/" : root);
             var freeGb = drive.AvailableFreeSpace / 1_073_741_824.0;
             var data   = new Dictionary<string, object> { ["free_gb"] = Math.Round(freeGb, 2) };
 
