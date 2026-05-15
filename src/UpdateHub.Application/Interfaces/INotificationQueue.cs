@@ -6,5 +6,10 @@ namespace UpdateHub.Application.Interfaces;
 /// </summary>
 public interface INotificationQueue
 {
-    void Enqueue(Func<CancellationToken, Task> work);
+    /// <summary>
+    /// The work delegate gets a fresh DI scope each invocation — resolve any
+    /// scoped service (DbContext, repositories, settings) from it instead of
+    /// capturing the request's scope, which is gone by the time the queue runs.
+    /// </summary>
+    void Enqueue(Func<IServiceProvider, CancellationToken, Task> work);
 }

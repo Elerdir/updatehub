@@ -4,23 +4,32 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 using MimeKit;
 using UpdateHub.Application.Interfaces;
+using UpdateHub.Application.Services;
 
 namespace UpdateHub.Infrastructure.Email;
 
-public class SmtpEmailService(IConfiguration config, ILogger<SmtpEmailService> logger) : IEmailService
+public class SmtpEmailService(
+    SettingsService settings,
+    IConfiguration  config,
+    ILogger<SmtpEmailService> logger)
+    : IEmailService
 {
     public async Task SendAsync(string subject, string body)
     {
-        var host = config["UpdateHub:Smtp:Host"];
-        var to   = config["UpdateHub:Smtp:To"];
+        var cfg = await settings.GetSmtpConfigAsync();
+
+        // Effective config = DB value if set, otherwise the environment / appsettings value.
+        var host     = cfg.Host     ?? config["UpdateHub:Smtp:Host"];
+        var to       = cfg.To       ?? config["UpdateHub:Smtp:To"];
+        var port     = cfg.Host     is null
+            ? (int.TryParse(config["UpdateHub:Smtp:Port"], out var p) ? p : 587)
+            : cfg.Port;
+        var from     = cfg.From     ?? config["UpdateHub:Smtp:From"]     ?? "updatehub@localhost";
+        var username = cfg.Username ?? config["UpdateHub:Smtp:Username"];
+        var password = cfg.Password ?? config["UpdateHub:Smtp:Password"];
 
         if (string.IsNullOrWhiteSpace(host) || string.IsNullOrWhiteSpace(to))
             return; // SMTP not configured — silently skip
-
-        var port     = int.TryParse(config["UpdateHub:Smtp:Port"], out var p) ? p : 587;
-        var from     = config["UpdateHub:Smtp:From"] ?? "updatehub@localhost";
-        var username = config["UpdateHub:Smtp:Username"];
-        var password = config["UpdateHub:Smtp:Password"];
 
         var message = new MimeMessage();
         message.From.Add(MailboxAddress.Parse(from));

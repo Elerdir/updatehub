@@ -1,3 +1,5 @@
+using Microsoft.Extensions.DependencyInjection;
+using UpdateHub.Application.Authorization;
 using UpdateHub.Application.Interfaces;
 using UpdateHub.Domain.Entities;
 using UpdateHub.Domain.Enums;
@@ -12,8 +14,11 @@ public class AdminService(
     IWebhookService         webhook,
     AuditService            audit,
     EmailNotificationService email,
-    INotificationQueue      notifications)
+    INotificationQueue      notifications,
+    ICurrentUser            currentUser)
 {
+    private const string Admin   = "Admin";
+    private const string Manager = "Manager";
     public Task<List<App>> GetAppsAsync() => appRepo.GetAllWithReleasesAsync();
 
     public Task<App?> GetAppAsync(string slug) => appRepo.GetBySlugAsync(slug);
@@ -22,6 +27,7 @@ public class AdminService(
 
     public async Task<App> CreateAppAsync(string slug, string name, string? description)
     {
+        RoleGuard.Require(currentUser, Admin, Manager);
         var app = await appRepo.CreateAsync(new App
         {
             Slug        = slug.Trim().ToLower(),
@@ -34,6 +40,7 @@ public class AdminService(
 
     public async Task UpdateAppAsync(Guid id, string name, string? description)
     {
+        RoleGuard.Require(currentUser, Admin, Manager);
         var app = await appRepo.GetByIdAsync(id)
             ?? throw new InvalidOperationException("App not found");
         app.Name        = name.Trim();
@@ -44,6 +51,7 @@ public class AdminService(
 
     public async Task DeleteAppAsync(Guid id)
     {
+        RoleGuard.Require(currentUser, Admin);
         var app = await appRepo.GetByIdAsync(id);
         if (app is null) return;
         await appRepo.DeleteAsync(app);
@@ -53,6 +61,7 @@ public class AdminService(
     public async Task<Release> CreateReleaseAsync(
         Guid appId, string version, ReleaseChannel channel, string? notes, bool mandatory)
     {
+        RoleGuard.Require(currentUser, Admin, Manager);
         var release = await releaseRepo.CreateAsync(new Release
         {
             AppId        = appId,
@@ -68,6 +77,7 @@ public class AdminService(
 
     public async Task PublishReleaseAsync(Guid releaseId)
     {
+        RoleGuard.Require(currentUser, Admin, Manager);
         var r = await releaseRepo.GetByIdAsync(releaseId)
             ?? throw new InvalidOperationException("Release not found");
 
@@ -91,15 +101,18 @@ public class AdminService(
         var slug    = r.App.Slug;
         var version = r.Version;
         var notes   = r.ReleaseNotes;
-        notifications.Enqueue(async _ =>
+        notifications.Enqueue(async (sp, _) =>
         {
-            await webhook.NotifyPublishedAsync(slug, version, notes, channel);
-            await email.SendReleasePublishedAsync(slug, version, channel);
+            var wh = sp.GetRequiredService<IWebhookService>();
+            var em = sp.GetRequiredService<EmailNotificationService>();
+            await wh.NotifyPublishedAsync(slug, version, notes, channel);
+            await em.SendReleasePublishedAsync(slug, version, channel);
         });
     }
 
     public async Task ArchiveReleaseAsync(Guid releaseId)
     {
+        RoleGuard.Require(currentUser, Admin, Manager);
         var r = await releaseRepo.GetByIdAsync(releaseId)
             ?? throw new InvalidOperationException("Release not found");
         r.Status = ReleaseStatus.Archived;
@@ -109,6 +122,7 @@ public class AdminService(
 
     public async Task DeleteReleaseAsync(Guid releaseId)
     {
+        RoleGuard.Require(currentUser, Admin, Manager);
         var r = await releaseRepo.GetByIdAsync(releaseId);
         if (r is null) return;
         await releaseRepo.DeleteAsync(r);
@@ -119,6 +133,7 @@ public class AdminService(
         Guid releaseId, string platform, string arch,
         Stream stream, string fileName, string? signature)
     {
+        RoleGuard.Require(currentUser, Admin, Manager);
         var release = await releaseRepo.GetByIdAsync(releaseId)
             ?? throw new InvalidOperationException("Release not found");
 
@@ -192,6 +207,7 @@ public class AdminService(
 
     public async Task DeleteArtifactAsync(Guid artifactId)
     {
+        RoleGuard.Require(currentUser, Admin, Manager);
         var a = await artifactRepo.GetByIdAsync(artifactId);
         if (a is null) return;
         storage.Delete(a.StoredPath);
@@ -216,6 +232,7 @@ public class AdminService(
 
     public async Task<string> RotateAppCiTokenAsync(Guid appId)
     {
+        RoleGuard.Require(currentUser, Admin);
         var app = await appRepo.GetByIdAsync(appId)
             ?? throw new InvalidOperationException("App not found");
         app.CiToken = GenerateToken();
@@ -226,6 +243,7 @@ public class AdminService(
 
     public async Task ClearAppCiTokenAsync(Guid appId)
     {
+        RoleGuard.Require(currentUser, Admin);
         var app = await appRepo.GetByIdAsync(appId)
             ?? throw new InvalidOperationException("App not found");
         app.CiToken = null;

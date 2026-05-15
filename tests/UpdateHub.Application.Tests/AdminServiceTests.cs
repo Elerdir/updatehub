@@ -17,13 +17,20 @@ public class AdminServiceTests
     private readonly IAuditRepository    _auditRepo = Substitute.For<IAuditRepository>();
     private readonly IEmailService       _emailSvc  = Substitute.For<IEmailService>();
     private readonly INotificationQueue  _queue     = Substitute.For<INotificationQueue>();
+    private readonly ICurrentUser        _currentUser = Substitute.For<ICurrentUser>();
     private readonly AdminService _sut;
 
     public AdminServiceTests()
     {
+        // Tests cover business logic, not authorization — give the substitute
+        // enough rope to pass every RoleGuard check.
+        _currentUser.IsAuthenticated.Returns(true);
+        _currentUser.IsInRole(Arg.Any<string>()).Returns(true);
+
         var audit = new AuditService(_auditRepo);
         var email = new EmailNotificationService(_emailSvc);
-        _sut = new AdminService(_apps, _releases, _artifacts, _storage, _webhook, audit, email, _queue);
+        _sut = new AdminService(_apps, _releases, _artifacts, _storage, _webhook,
+                                audit, email, _queue, _currentUser);
     }
 
     // ── CreateAppAsync ────────────────────────────────────────────────────────

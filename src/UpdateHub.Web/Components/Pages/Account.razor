@@ -15,6 +15,25 @@
     <h1>@L["account.title"]</h1>
 </div>
 
+@* ── Preferences (theme + language) ──────────────────────────────────────── *@
+<div class="card" style="margin-bottom:24px;">
+    <h3>@L["account.preferences"]</h3>
+    <div class="pref-row">
+        <div>
+            <div class="pref-label">@L["nav.theme"]</div>
+            <small style="color:var(--muted);">@L["account.theme.hint"]</small>
+        </div>
+        <ThemeSwitcher />
+    </div>
+    <div class="pref-row">
+        <div>
+            <div class="pref-label">@L["nav.language"]</div>
+            <small style="color:var(--muted);">@L["account.language.hint"]</small>
+        </div>
+        <LanguageSwitcher />
+    </div>
+</div>
+
 @* ── Change own password ─────────────────────────────────────────────────── *@
 <div class="card" style="margin-bottom:24px;">
     <h3>@L["account.password"]</h3>
@@ -126,8 +145,8 @@
 
         try
         {
+            // UserService.ChangeOwnPasswordAsync already audits and emails.
             await UserSvc.ChangeOwnPasswordAsync(_userId, _currentPw, _newPw);
-            await EmailSvc.SendPasswordChangedAsync();
             _currentPw = _newPw = _confirmPw = null;
             _pwSuccess = L["account.password.saved"];
         }

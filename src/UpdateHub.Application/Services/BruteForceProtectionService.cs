@@ -1,3 +1,5 @@
+using Microsoft.Extensions.DependencyInjection;
+using UpdateHub.Application.Authorization;
 using UpdateHub.Application.Interfaces;
 using UpdateHub.Domain.Entities;
 
@@ -6,9 +8,11 @@ namespace UpdateHub.Application.Services;
 public class BruteForceProtectionService(
     ILoginAttemptRepository repo,
     EmailNotificationService email,
-    INotificationQueue notifications)
+    INotificationQueue notifications,
+    ICurrentUser currentUser)
 {
     public const int MaxFailedAttempts = 5;
+    private const string Admin = "Admin";
 
     public async Task<bool> IsBlockedAsync(string ip)
     {
@@ -40,7 +44,14 @@ public class BruteForceProtectionService(
         await repo.UpsertAsync(a);
 
         if (justBlocked)
-            notifications.Enqueue(_ => email.SendIpBlockedAsync(ip, isManual: false));
+        {
+            var capturedIp = ip;
+            notifications.Enqueue(async (sp, _) =>
+            {
+                var em = sp.GetRequiredService<EmailNotificationService>();
+                await em.SendIpBlockedAsync(capturedIp, isManual: false);
+            });
+        }
     }
 
     public async Task RecordSuccessAsync(string ip)
@@ -57,6 +68,7 @@ public class BruteForceProtectionService(
 
     public async Task UnblockAsync(string ip)
     {
+        RoleGuard.Require(currentUser, Admin);
         var a = await repo.GetByIpAsync(ip);
         if (a is null) return;
         a.IsBlocked    = false;
@@ -68,6 +80,7 @@ public class BruteForceProtectionService(
 
     public async Task BlockManuallyAsync(string ip)
     {
+        RoleGuard.Require(currentUser, Admin);
         var a = await repo.GetByIpAsync(ip) ?? new LoginAttempt
         {
             IpAddress      = ip,
@@ -80,7 +93,11 @@ public class BruteForceProtectionService(
         await repo.UpsertAsync(a);
     }
 
-    public async Task DeleteRecordAsync(string ip) => await repo.DeleteAsync(ip);
+    public async Task DeleteRecordAsync(string ip)
+    {
+        RoleGuard.Require(currentUser, Admin);
+        await repo.DeleteAsync(ip);
+    }
 
     public Task<List<LoginAttempt>> GetAllAsync() => repo.GetAllAsync();
 

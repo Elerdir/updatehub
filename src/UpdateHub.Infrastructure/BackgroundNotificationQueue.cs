@@ -1,4 +1,5 @@
 using System.Threading.Channels;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using UpdateHub.Application.Interfaces;
@@ -7,15 +8,19 @@ namespace UpdateHub.Infrastructure;
 
 /// <summary>
 /// In-process background queue that drains queued work items one at a time.
-/// Used for webhooks and SMTP so the publish/login request never blocks on them.
+/// Each work item runs inside a freshly created DI scope so it can resolve
+/// scoped services (DbContext, repositories) safely after the originating
+/// HTTP request has ended.
 /// </summary>
-public class BackgroundNotificationQueue(ILogger<BackgroundNotificationQueue> logger)
+public class BackgroundNotificationQueue(
+    IServiceScopeFactory scopeFactory,
+    ILogger<BackgroundNotificationQueue> logger)
     : BackgroundService, INotificationQueue
 {
-    private readonly Channel<Func<CancellationToken, Task>> _channel =
-        Channel.CreateUnbounded<Func<CancellationToken, Task>>();
+    private readonly Channel<Func<IServiceProvider, CancellationToken, Task>> _channel =
+        Channel.CreateUnbounded<Func<IServiceProvider, CancellationToken, Task>>();
 
-    public void Enqueue(Func<CancellationToken, Task> work) =>
+    public void Enqueue(Func<IServiceProvider, CancellationToken, Task> work) =>
         _channel.Writer.TryWrite(work);
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -24,7 +29,8 @@ public class BackgroundNotificationQueue(ILogger<BackgroundNotificationQueue> lo
         {
             try
             {
-                await work(stoppingToken);
+                await using var scope = scopeFactory.CreateAsyncScope();
+                await work(scope.ServiceProvider, stoppingToken);
             }
             catch (Exception ex)
             {

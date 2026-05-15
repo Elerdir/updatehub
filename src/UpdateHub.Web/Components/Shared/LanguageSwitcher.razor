@@ -2,23 +2,34 @@
 @inject UpdateHub.Web.Localization.Translator L
 @using UpdateHub.Web.Localization
 
-<div class="chooser">
-    <div class="chooser-label">@L["nav.language"]</div>
-    <div class="chooser-row">
-        @foreach (var (code, label) in UiStrings.Languages)
-        {
-            <a class="@(code == L.CurrentLanguage ? "active" : "")"
-               href="@Url(code)">@label</a>
-        }
-    </div>
-</div>
+<select class="pref-select" onchange="window.location.href=this.value">
+    @foreach (var (code, _) in UiStrings.Languages)
+    {
+        <option value="@Url(code)" selected="@(code == L.CurrentLanguage)">@Flag(code)&nbsp; @Label(code)</option>
+    }
+</select>
 
 @code {
     private string Url(string code)
     {
-        // Strip the origin so the redirect target stays a relative path
-        // (UseLocalRedirect refuses absolute URLs).
         var current = Nav.ToBaseRelativePath(Nav.Uri);
         return $"/account/culture?lang={code}&returnUrl=/{Uri.EscapeDataString(current)}";
     }
+
+    // Native names so each language is recognizable in its own script
+    private static string Label(string code) => code switch
+    {
+        "cs" => "Čeština",
+        "de" => "Deutsch",
+        _    => "English",
+    };
+
+    // Regional indicator pairs — render as flags on platforms that support them,
+    // gracefully fall back to letter pairs elsewhere (notably Windows).
+    private static string Flag(string code) => code switch
+    {
+        "cs" => "🇨🇿",
+        "de" => "🇩🇪",
+        _    => "🇬🇧",
+    };
 }

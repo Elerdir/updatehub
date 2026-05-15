@@ -1,13 +1,21 @@
 using UpdateHub.Application.Interfaces;
+using UpdateHub.Application.Models;
 
 namespace UpdateHub.Application.Services;
 
 public class SettingsService(ISettingsRepository repo, ISecretProtector protector)
 {
     private const string CiTokenKey        = "CiToken";
-    private const string AdminPasswordKey   = "AdminPasswordHash";
-    private const string TotpEnabledKey     = "Totp:Enabled";
-    private const string TotpSecretKey      = "Totp:Secret";
+    private const string AdminPasswordKey  = "AdminPasswordHash";
+    private const string TotpEnabledKey    = "Totp:Enabled";
+    private const string TotpSecretKey     = "Totp:Secret";
+
+    private const string SmtpHostKey       = "Smtp:Host";
+    private const string SmtpPortKey       = "Smtp:Port";
+    private const string SmtpFromKey       = "Smtp:From";
+    private const string SmtpUsernameKey   = "Smtp:Username";
+    private const string SmtpPasswordKey   = "Smtp:Password";
+    private const string SmtpToKey         = "Smtp:To";
 
     // ── CI Token ──────────────────────────────────────────────────────────────
 
@@ -62,6 +70,55 @@ public class SettingsService(ISettingsRepository repo, ISecretProtector protecto
         await repo.SetAsync(TotpEnabledKey, "false");
         await repo.SetAsync(TotpSecretKey, "");
     }
+
+    // ── SMTP (admin-editable at runtime) ──────────────────────────────────────
+
+    public async Task<SmtpConfig> GetSmtpConfigAsync()
+    {
+        var host     = await repo.GetAsync(SmtpHostKey);
+        var portStr  = await repo.GetAsync(SmtpPortKey);
+        var port     = int.TryParse(portStr, out var p) ? p : 587;
+        var from     = await repo.GetAsync(SmtpFromKey);
+        var user     = await repo.GetAsync(SmtpUsernameKey);
+        var pwEnc    = await repo.GetAsync(SmtpPasswordKey);
+        var to       = await repo.GetAsync(SmtpToKey);
+
+        string? pw = null;
+        if (!string.IsNullOrEmpty(pwEnc))
+        {
+            try { pw = protector.Unprotect(pwEnc); }
+            catch { pw = pwEnc; /* pre-encryption value */ }
+        }
+
+        return new SmtpConfig(
+            Host:     string.IsNullOrWhiteSpace(host) ? null : host,
+            Port:     port,
+            From:     string.IsNullOrWhiteSpace(from) ? null : from,
+            Username: string.IsNullOrWhiteSpace(user) ? null : user,
+            Password: pw,
+            To:       string.IsNullOrWhiteSpace(to)   ? null : to);
+    }
+
+    public async Task SaveSmtpConfigAsync(SmtpConfig cfg, bool replacePassword)
+    {
+        await repo.SetAsync(SmtpHostKey,     cfg.Host     ?? "");
+        await repo.SetAsync(SmtpPortKey,     cfg.Port.ToString());
+        await repo.SetAsync(SmtpFromKey,     cfg.From     ?? "");
+        await repo.SetAsync(SmtpUsernameKey, cfg.Username ?? "");
+        await repo.SetAsync(SmtpToKey,       cfg.To       ?? "");
+
+        if (replacePassword)
+        {
+            // Empty replacement clears the stored password.
+            await repo.SetAsync(SmtpPasswordKey,
+                string.IsNullOrEmpty(cfg.Password)
+                    ? ""
+                    : protector.Protect(cfg.Password));
+        }
+    }
+
+    public async Task<bool> HasStoredSmtpPasswordAsync() =>
+        !string.IsNullOrEmpty(await repo.GetAsync(SmtpPasswordKey));
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 

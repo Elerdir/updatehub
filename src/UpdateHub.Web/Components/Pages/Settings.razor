@@ -6,6 +6,7 @@
 @inject IConfiguration Config
 @inject IJSRuntime JS
 @inject UpdateHub.Web.Localization.Translator L
+@using UpdateHub.Application.Models
 
 <PageTitle>@L["page.settings"] — UpdateHub</PageTitle>
 
@@ -15,10 +16,9 @@
 
 @* ── CI Token ────────────────────────────────────────────────────────────── *@
 <div class="card" style="margin-bottom:24px;">
-    <h3>CI Upload Token</h3>
+    <h3>@L["settings.ciToken"]</h3>
     <p style="color:var(--muted);margin-bottom:16px;font-size:13px;">
-        Used in GitHub Actions as <code>X-UpdateHub-Token</code> header.
-        Rotating generates a new token — update your CI secrets afterwards.
+        @L["settings.ciToken.hint"]
     </p>
 
     @if (_token is not null)
@@ -33,39 +33,93 @@
     {
         <div class="token-display">
             <div class="token-box" style="color:var(--muted);">@_masked</div>
-            <button class="btn-ghost btn-sm" @onclick="RevealToken">Reveal</button>
+            <button class="btn-ghost btn-sm" @onclick="RevealToken">@L["settings.reveal"]</button>
         </div>
     }
 
     <div style="margin-top:16px;">
         @if (_confirmRotate)
         {
-            <span style="color:var(--muted);font-size:13px;margin-right:12px;">Rotate and invalidate current token?</span>
-            <button class="btn-danger" @onclick="DoRotate">Yes, rotate</button>
+            <span style="color:var(--muted);font-size:13px;margin-right:12px;">@L["settings.rotateConfirm"]</span>
+            <button class="btn-danger" @onclick="DoRotate">@L["settings.rotateYes"]</button>
             <button class="btn-ghost btn-sm" style="margin-left:8px;" @onclick="() => _confirmRotate = false">@L["common.cancel"]</button>
         }
         else
         {
-            <button class="btn-danger-outline btn-sm" @onclick="() => _confirmRotate = true">Rotate token…</button>
+            <button class="btn-danger-outline btn-sm" @onclick="() => _confirmRotate = true">@L["settings.rotate"]…</button>
         }
     </div>
     @if (_rotateMsg is not null) { <div class="info" style="margin-top:8px;">@_rotateMsg</div> }
 </div>
 
-@* ── SMTP Notifications ──────────────────────────────────────────────────── *@
+@* ── SMTP — editable runtime config ──────────────────────────────────────── *@
 <div class="card">
-    <h3>Email Notifications</h3>
-    <p style="color:var(--muted);font-size:13px;">
-        Configure <code>UpdateHub:Smtp:*</code> keys in <code>appsettings.json</code> (or environment variables)
-        to enable email alerts for publish events, IP blocks, and password changes.
+    <h3>@L["settings.smtp"]</h3>
+    <p style="color:var(--muted);font-size:13px;margin-bottom:16px;">
+        @L["settings.smtp.hint"]
+        @if (_envFallback) { <em>@L["settings.smtp.envHint"]</em> }
     </p>
-    <table style="font-size:13px;border-collapse:collapse;width:100%;">
-        <tr><td style="padding:4px 12px 4px 0;color:var(--muted);">Host</td><td><code>@(Config["UpdateHub:Smtp:Host"] ?? "(not set)")</code></td></tr>
-        <tr><td style="padding:4px 12px 4px 0;color:var(--muted);">From</td><td><code>@(Config["UpdateHub:Smtp:From"] ?? "(not set)")</code></td></tr>
-        <tr><td style="padding:4px 12px 4px 0;color:var(--muted);">To</td><td><code>@(Config["UpdateHub:Smtp:To"] ?? "(not set)")</code></td></tr>
-    </table>
-    <button class="btn-ghost btn-sm" style="margin-top:16px;" @onclick="SendTestEmail">Send test email</button>
-    @if (_emailMsg is not null) { <div class="info" style="margin-top:8px;">@_emailMsg</div> }
+
+    <div class="form-row">
+        <div class="field">
+            <label>@L["settings.smtp.host"]</label>
+            <input @bind="_form.Host" placeholder="smtp.example.com" />
+        </div>
+        <div class="field">
+            <label>@L["settings.smtp.port"]</label>
+            <input type="number" @bind="_form.Port" />
+        </div>
+    </div>
+    <div class="field">
+        <label>@L["settings.smtp.from"]</label>
+        <input @bind="_form.From" placeholder="updatehub@example.com" />
+    </div>
+    <div class="form-row">
+        <div class="field">
+            <label>@L["settings.smtp.username"]</label>
+            <input @bind="_form.Username" autocomplete="off" />
+        </div>
+        <div class="field">
+            <label>
+                @L["settings.smtp.password"]
+                @if (_hasStoredPassword)
+                {
+                    <span class="hint">(@L["settings.smtp.password.stored"])</span>
+                }
+            </label>
+            <input type="password" @bind="_form.Password" autocomplete="new-password"
+                   placeholder="@(_hasStoredPassword ? L["settings.smtp.password.placeholder"] : "")" />
+        </div>
+    </div>
+    <div class="field">
+        <label>@L["settings.smtp.to"]</label>
+        <input @bind="_form.To" placeholder="alerts@example.com" />
+    </div>
+
+    @if (_clearPasswordToggled)
+    {
+        <div class="info" style="margin-bottom:12px;">@L["settings.smtp.password.willClear"]</div>
+    }
+
+    @if (_smtpMsg is not null) { <div class="info" style="margin-bottom:12px;">@_smtpMsg</div> }
+    @if (_smtpErr is not null) { <div class="error" style="margin-bottom:12px;">@_smtpErr</div> }
+
+    <div class="form-actions">
+        <button class="btn-primary" @onclick="SaveSmtp">@L["common.save"]</button>
+        <button class="btn-ghost"   @onclick="SendTestEmail" disabled="@_testInFlight">
+            @(_testInFlight ? L["settings.smtp.sending"] : L["settings.smtp.sendTest"])
+        </button>
+        @if (_hasStoredPassword && !_clearPasswordToggled)
+        {
+            <button class="btn-ghost btn-sm" style="margin-left:auto;color:var(--danger);"
+                    @onclick="() => _clearPasswordToggled = true">@L["settings.smtp.password.clear"]</button>
+        }
+        else if (_clearPasswordToggled)
+        {
+            <button class="btn-ghost btn-sm" style="margin-left:auto;"
+                    @onclick="() => _clearPasswordToggled = false">@L["common.cancel"]</button>
+        }
+    </div>
 </div>
 
 @code {
@@ -74,7 +128,74 @@
     private bool    _confirmRotate;
     private bool    _copied;
     private string? _rotateMsg;
-    private string? _emailMsg;
+
+    private SmtpFormModel _form = new();
+    private bool          _hasStoredPassword;
+    private bool          _envFallback;
+    private bool          _clearPasswordToggled;
+    private string?       _smtpMsg;
+    private string?       _smtpErr;
+    private bool          _testInFlight;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var cfg = await SettingsSvc.GetSmtpConfigAsync();
+        _form = new SmtpFormModel
+        {
+            Host     = cfg.Host,
+            Port     = cfg.Port,
+            From     = cfg.From,
+            Username = cfg.Username,
+            Password = null, // never pre-fill — we only know the hash
+            To       = cfg.To,
+        };
+        _hasStoredPassword = await SettingsSvc.HasStoredSmtpPasswordAsync();
+        _envFallback = string.IsNullOrEmpty(cfg.Host) &&
+                       !string.IsNullOrEmpty(Config["UpdateHub:Smtp:Host"]);
+    }
+
+    private async Task SaveSmtp()
+    {
+        _smtpMsg = _smtpErr = null;
+        try
+        {
+            // Three cases for the password slot:
+            //   typed something  → replace with new value
+            //   blank + clear toggle on → clear the stored password
+            //   blank + clear toggle off → keep whatever is stored
+            string? newPw      = _form.Password;
+            bool   replacePw   = !string.IsNullOrEmpty(newPw) || _clearPasswordToggled;
+            if (_clearPasswordToggled) newPw = "";
+
+            var cfg = new SmtpConfig(
+                Host:     string.IsNullOrWhiteSpace(_form.Host) ? null : _form.Host.Trim(),
+                Port:     _form.Port,
+                From:     string.IsNullOrWhiteSpace(_form.From) ? null : _form.From.Trim(),
+                Username: string.IsNullOrWhiteSpace(_form.Username) ? null : _form.Username.Trim(),
+                Password: newPw,
+                To:       string.IsNullOrWhiteSpace(_form.To) ? null : _form.To.Trim());
+            await SettingsSvc.SaveSmtpConfigAsync(cfg, replacePassword: replacePw);
+            _hasStoredPassword = await SettingsSvc.HasStoredSmtpPasswordAsync();
+            _clearPasswordToggled = false;
+            _form.Password = null;
+            _envFallback   = false;
+            _smtpMsg       = L["settings.smtp.saved"];
+        }
+        catch (Exception ex) { _smtpErr = ex.Message; }
+    }
+
+    private async Task SendTestEmail()
+    {
+        _smtpMsg = _smtpErr = null;
+        _testInFlight = true;
+        try
+        {
+            await EmailSvc.SendTestAsync();
+            _smtpMsg = L["settings.smtp.testSent"];
+        }
+        catch (Exception ex) { _smtpErr = ex.Message; }
+        finally { _testInFlight = false; }
+    }
 
     private async Task RevealToken()
     {
@@ -98,13 +219,16 @@
     {
         _confirmRotate = false;
         _token = await SettingsSvc.RotateCiTokenAsync();
-        _rotateMsg = "Token rotated — update your CI secrets with the new value above.";
+        _rotateMsg = L["settings.rotatedMsg"];
     }
 
-    private async Task SendTestEmail()
+    private class SmtpFormModel
     {
-        _emailMsg = null;
-        await EmailSvc.SendReleasePublishedAsync("test-app", "1.0.0-test", "stable");
-        _emailMsg = "Test email sent (if SMTP is configured, check your inbox).";
+        public string? Host { get; set; }
+        public int     Port { get; set; } = 587;
+        public string? From { get; set; }
+        public string? Username { get; set; }
+        public string? Password { get; set; }
+        public string? To { get; set; }
     }
 }

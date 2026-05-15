@@ -9,6 +9,8 @@ using Microsoft.AspNetCore.Localization;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Scalar.AspNetCore;
+using UpdateHub.Application.Interfaces;
+using UpdateHub.Web.Authorization;
 using UpdateHub.Web.Localization;
 using UpdateHub.Web.Startup;
 using Serilog;
@@ -68,6 +70,10 @@ builder.Services.AddAuthorization();
 builder.Services.AddCascadingAuthenticationState();
 
 builder.Services.AddInfrastructure(builder.Configuration);
+
+// HttpContext-backed current-user accessor so Application services can do role guards
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<ICurrentUser, CurrentUser>();
 
 // Rate limiting
 builder.Services.AddRateLimiter(o =>

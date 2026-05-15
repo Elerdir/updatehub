@@ -1,4 +1,6 @@
 using System.Security.Cryptography;
+using Microsoft.Extensions.DependencyInjection;
+using UpdateHub.Application.Authorization;
 using UpdateHub.Application.Interfaces;
 using UpdateHub.Domain.Entities;
 using UpdateHub.Domain.Enums;
@@ -8,8 +10,11 @@ namespace UpdateHub.Application.Services;
 public class UserService(
     IUserRepository    users,
     ISecretProtector   protector,
-    AuditService       audit)
+    AuditService       audit,
+    INotificationQueue notifications,
+    ICurrentUser       currentUser)
 {
+    private const string Admin = "Admin";
     public const int MinPasswordLength = 8;
 
     public Task<List<User>> GetAllAsync()           => users.GetAllAsync();
@@ -39,6 +44,7 @@ public class UserService(
     public async Task<User> CreateAsync(
         string username, string tempPassword, UserRole role, Guid createdById, string createdByName)
     {
+        RoleGuard.Require(currentUser, Admin);
         username = username.Trim();
         if (username.Length < 3)
             throw new ArgumentException("Username must be at least 3 characters.");
@@ -64,6 +70,12 @@ public class UserService(
             entityType: "User", entityId: created.Id.ToString(),
             details: $"{username} ({role})");
 
+        notifications.Enqueue(async (sp, _) =>
+        {
+            var em = sp.GetRequiredService<EmailNotificationService>();
+            await em.SendUserCreatedAsync(username, role.ToString(), createdByName);
+        });
+
         return created;
     }
 
@@ -74,6 +86,7 @@ public class UserService(
     /// </summary>
     public async Task ResetPasswordAsync(Guid userId, string newTempPassword, string resetByName)
     {
+        RoleGuard.Require(currentUser, Admin);
         if (newTempPassword.Length < MinPasswordLength)
             throw new ArgumentException($"Password must be at least {MinPasswordLength} characters.");
 
@@ -88,6 +101,13 @@ public class UserService(
         await audit.LogAsync("ResetPassword", actor: resetByName,
             entityType: "User", entityId: userId.ToString(),
             details: user.Username);
+
+        var username = user.Username;
+        notifications.Enqueue(async (sp, _) =>
+        {
+            var em = sp.GetRequiredService<EmailNotificationService>();
+            await em.SendPasswordResetAsync(username, resetByName);
+        });
     }
 
     /// <summary>
@@ -97,6 +117,7 @@ public class UserService(
     /// </summary>
     public async Task ChangeOwnPasswordAsync(Guid userId, string currentPassword, string newPassword)
     {
+        RequireSelf(userId);
         if (newPassword.Length < MinPasswordLength)
             throw new ArgumentException($"Password must be at least {MinPasswordLength} characters.");
         if (newPassword == currentPassword)
@@ -115,10 +136,18 @@ public class UserService(
 
         await audit.LogAsync("ChangeOwnPassword", actor: user.Username,
             entityType: "User", entityId: userId.ToString());
+
+        var username = user.Username;
+        notifications.Enqueue(async (sp, _) =>
+        {
+            var em = sp.GetRequiredService<EmailNotificationService>();
+            await em.SendPasswordChangedAsync(username);
+        });
     }
 
     public async Task SetActiveAsync(Guid userId, bool active, string actorName)
     {
+        RoleGuard.Require(currentUser, Admin);
         var user = await users.GetByIdAsync(userId)
             ?? throw new InvalidOperationException("User not found.");
         if (user.IsActive == active) return;
@@ -134,6 +163,7 @@ public class UserService(
 
     public async Task SetRoleAsync(Guid userId, UserRole role, string actorName)
     {
+        RoleGuard.Require(currentUser, Admin);
         var user = await users.GetByIdAsync(userId)
             ?? throw new InvalidOperationException("User not found.");
         if (user.Role == role) return;
@@ -168,6 +198,7 @@ public class UserService(
 
     public async Task EnableTotpAsync(Guid userId, string secret)
     {
+        RequireSelf(userId);
         var user = await users.GetByIdAsync(userId)
             ?? throw new InvalidOperationException("User not found.");
         user.TotpSecret  = protector.Protect(secret);
@@ -179,6 +210,7 @@ public class UserService(
 
     public async Task DisableTotpAsync(Guid userId)
     {
+        RequireSelf(userId);
         var user = await users.GetByIdAsync(userId)
             ?? throw new InvalidOperationException("User not found.");
         user.TotpSecret  = null;
@@ -189,6 +221,12 @@ public class UserService(
     }
 
     // ── Helpers ────────────────────────────────────────────────────────────
+
+    private void RequireSelf(Guid userId)
+    {
+        if (!currentUser.IsAuthenticated || currentUser.Id != userId)
+            throw new UnauthorizedAccessException("Self-service operation only.");
+    }
 
     /// <summary>
     /// Cryptographically random temp password (16 chars, URL-safe alphabet).

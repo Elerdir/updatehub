@@ -15,8 +15,6 @@
         <li><NavLink href="/account">@L["nav.account"]</NavLink></li>
     </ul>
     <div class="sidebar-footer">
-        <ThemeSwitcher />
-        <LanguageSwitcher />
         <form method="post" action="/account/logout">
             <AntiforgeryToken />
             <button type="submit" class="btn-logout">@L["nav.logout"]</button>

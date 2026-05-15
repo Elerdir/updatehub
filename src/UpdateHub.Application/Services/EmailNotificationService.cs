@@ -30,14 +30,47 @@ public class EmailNotificationService(IEmailService email)
             Time:   {DateTime.UtcNow:u}
             """);
 
-    public Task SendPasswordChangedAsync() =>
+    public Task SendPasswordChangedAsync(string? username = null) =>
         email.SendAsync(
-            "[UpdateHub] Admin password changed",
+            "[UpdateHub] Password changed",
             $"""
-            The UpdateHub admin password was changed.
+            A user password was changed on UpdateHub.
 
+            User: {username ?? "(unknown)"}
             Time: {DateTime.UtcNow:u}
 
             If you did not do this, check your server immediately.
             """);
+
+    public Task SendUserCreatedAsync(string username, string role, string createdByName) =>
+        email.SendAsync(
+            $"[UpdateHub] New user created: {username}",
+            $"""
+            A new user account was created on UpdateHub.
+
+            Username: {username}
+            Role:     {role}
+            Created by: {createdByName}
+            Time:     {DateTime.UtcNow:u}
+
+            The user must change their temporary password on first login.
+            """);
+
+    public Task SendPasswordResetAsync(string username, string resetByName) =>
+        email.SendAsync(
+            $"[UpdateHub] Password reset: {username}",
+            $"""
+            A user password was reset on UpdateHub by an administrator.
+
+            User:       {username}
+            Reset by:   {resetByName}
+            Time:       {DateTime.UtcNow:u}
+
+            The user must change the temporary password on next login.
+            """);
+
+    public Task SendTestAsync() =>
+        email.SendAsync(
+            "[UpdateHub] Test message",
+            $"This is a test message from UpdateHub. SMTP is configured correctly. Time: {DateTime.UtcNow:u}");
 }
