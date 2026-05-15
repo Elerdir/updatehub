@@ -2,41 +2,42 @@
 @attribute [Authorize]
 @rendermode InteractiveServer
 @inject AdminService AdminSvc
+@inject UpdateHub.Web.Localization.Translator L
 
-<PageTitle>Dashboard — UpdateHub</PageTitle>
+<PageTitle>@L["dashboard.title"] — UpdateHub</PageTitle>
 
 <div class="page-header">
-    <h1>Dashboard</h1>
+    <h1>@L["dashboard.title"]</h1>
 </div>
 
 <div class="stats">
     <div class="stat-card">
         <span class="stat-value">@appCount</span>
-        <span class="stat-label">Applications</span>
+        <span class="stat-label">@L["dashboard.stat.applications"]</span>
     </div>
     <div class="stat-card">
         <span class="stat-value">@publishedCount</span>
-        <span class="stat-label">Published Releases</span>
+        <span class="stat-label">@L["dashboard.stat.published"]</span>
     </div>
     <div class="stat-card">
         <span class="stat-value">@totalDownloads</span>
-        <span class="stat-label">Total Downloads</span>
+        <span class="stat-label">@L["dashboard.stat.downloads"]</span>
     </div>
 </div>
 
 @if (apps is not null && apps.Count > 0)
 {
     <div class="section-header">
-        <h2>Applications</h2>
-        <a href="/apps" class="btn-sm btn-outline">View all</a>
+        <h2>@L["dashboard.applications"]</h2>
+        <a href="/apps" class="btn-sm btn-outline">@L["dashboard.viewAll"]</a>
     </div>
     <table class="table">
         <thead>
             <tr>
-                <th>Name</th>
-                <th>Slug</th>
-                <th>Latest (Stable)</th>
-                <th>Releases</th>
+                <th>@L["dashboard.col.name"]</th>
+                <th>@L["dashboard.col.slug"]</th>
+                <th>@L["dashboard.col.latest"]</th>
+                <th>@L["dashboard.col.releases"]</th>
                 <th></th>
             </tr>
         </thead>
@@ -52,7 +53,7 @@
                     <td><code>@app.Slug</code></td>
                     <td>@(latest?.Version ?? "—")</td>
                     <td>@app.Releases.Count</td>
-                    <td><a href="/apps/@app.Slug">Manage</a></td>
+                    <td><a href="/apps/@app.Slug">@L["dashboard.manage"]</a></td>
                 </tr>
             }
         </tbody>
@@ -61,8 +62,8 @@
 else if (apps is not null)
 {
     <div class="empty-state">
-        <p>No applications yet.</p>
-        <a href="/apps" class="btn-primary">Register your first app</a>
+        <p>@L["dashboard.empty"]</p>
+        <a href="/apps" class="btn-primary">@L["dashboard.empty.cta"]</a>
     </div>
 }
 

@@ -1,0 +1,31 @@
+@rendermode InteractiveServer
+@inject IJSRuntime JS
+@inject UpdateHub.Web.Localization.Translator L
+
+<div class="chooser">
+    <div class="chooser-label">@L["nav.theme"]</div>
+    <div class="chooser-row">
+        <button type="button" class="@Css("auto")"  @onclick='() => Set("auto")'>@L["nav.theme.auto"]</button>
+        <button type="button" class="@Css("light")" @onclick='() => Set("light")'>@L["nav.theme.light"]</button>
+        <button type="button" class="@Css("dark")"  @onclick='() => Set("dark")'>@L["nav.theme.dark"]</button>
+    </div>
+</div>
+
+@code {
+    private string _current = "auto";
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+        _current = await JS.InvokeAsync<string>("updateHubTheme.get");
+        StateHasChanged();
+    }
+
+    private async Task Set(string mode)
+    {
+        _current = mode;
+        await JS.InvokeVoidAsync("updateHubTheme.set", mode);
+    }
+
+    private string Css(string mode) => _current == mode ? "active" : "";
+}

@@ -3,19 +3,23 @@ services:
     image: ghcr.io/elerdir/updatehub:latest   # use pre-built image from GHCR
     # build: .                                 # or build locally
     ports:
-      - "8080:8080"
+      - "8081:8080"
     volumes:
       - ./data:/app/data     # SQLite DB + artifacts
       - ./logs:/app/logs     # Serilog rolling log files
     environment:
       # ── Required ────────────────────────────────────────────────────────────
-      - UpdateHub__BaseUrl=https://your-domain.com
-      - UpdateHub__Admin__Username=admin
-      # Generate: cd tools/GenerateHash && dotnet run -- yourpassword
-      - UpdateHub__Admin__PasswordHash=CHANGE_ME_BCRYPT_HASH
+      # Set these in a local .env file (not committed):
+      #   UPDATEHUB_BASE_URL=http://localhost:8081
+      #   UPDATEHUB_ADMIN_PASSWORD_HASH=$$2a$$12$$...    (literal $ doubled for compose)
+      #   UPDATEHUB_CI_TOKEN=<random>
+      # Generate a hash: cd tools/GenerateHash && dotnet run -- yourpassword
+      - UpdateHub__BaseUrl=${UPDATEHUB_BASE_URL:-http://localhost:8081}
+      - UpdateHub__Admin__Username=${UPDATEHUB_ADMIN_USERNAME:-admin}
+      - UpdateHub__Admin__PasswordHash=${UPDATEHUB_ADMIN_PASSWORD_HASH:-CHANGE_ME_BCRYPT_HASH}
 
       # ── CI upload token (override in DB via Settings page after first run) ──
-      - UpdateHub__CiToken=CHANGE_ME_RANDOM_TOKEN
+      - UpdateHub__CiToken=${UPDATEHUB_CI_TOKEN:-CHANGE_ME_RANDOM_TOKEN}
 
       # ── Optional: webhook on publish ────────────────────────────────────────
       - UpdateHub__WebhookUrl=

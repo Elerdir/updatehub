@@ -1,28 +1,21 @@
 @inject NavigationManager Nav
+@inject UpdateHub.Web.Localization.Translator L
 
 <nav class="sidebar">
     <div class="brand">UpdateHub</div>
     <ul>
-        <li>
-            <NavLink href="/" Match="NavLinkMatch.All">Dashboard</NavLink>
-        </li>
-        <li>
-            <NavLink href="/apps">Applications</NavLink>
-        </li>
-        <li>
-            <NavLink href="/settings">Settings</NavLink>
-        </li>
-        <li>
-            <NavLink href="/security">Security</NavLink>
-        </li>
-        <li>
-            <NavLink href="/audit">Audit Log</NavLink>
-        </li>
+        <li><NavLink href="/"         Match="NavLinkMatch.All">@L["nav.dashboard"]</NavLink></li>
+        <li><NavLink href="/apps">@L["nav.applications"]</NavLink></li>
+        <li><NavLink href="/settings">@L["nav.settings"]</NavLink></li>
+        <li><NavLink href="/security">@L["nav.security"]</NavLink></li>
+        <li><NavLink href="/audit">@L["nav.audit"]</NavLink></li>
     </ul>
     <div class="sidebar-footer">
+        <ThemeSwitcher />
+        <LanguageSwitcher />
         <form method="post" action="/account/logout">
             <AntiforgeryToken />
-            <button type="submit" class="btn-logout">Logout</button>
+            <button type="submit" class="btn-logout">@L["nav.logout"]</button>
         </form>
     </div>
 </nav>

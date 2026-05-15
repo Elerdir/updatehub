@@ -1,11 +1,15 @@
+using System.Globalization;
 using System.Text.Json;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication.Cookies;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
 using Microsoft.AspNetCore.HttpOverrides;
+using Microsoft.AspNetCore.Localization;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Scalar.AspNetCore;
+using UpdateHub.Web.Localization;
 using Serilog;
 using UpdateHub.Application.Services;
 using UpdateHub.Infrastructure;
@@ -88,6 +92,18 @@ builder.Services.AddRateLimiter(o =>
     o.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
 });
 
+// Localization — cs/en/de via the standard .AspNetCore.Culture cookie
+var supportedCultures = UiStrings.Languages
+    .Select(l => new CultureInfo(l.Code))
+    .ToArray();
+builder.Services.Configure<RequestLocalizationOptions>(o =>
+{
+    o.DefaultRequestCulture = new RequestCulture("en");
+    o.SupportedCultures     = supportedCultures;
+    o.SupportedUICultures   = supportedCultures;
+});
+builder.Services.AddScoped<Translator>();
+
 // OpenAPI
 builder.Services.AddOpenApi();
 
@@ -111,6 +127,7 @@ if (!app.Environment.IsDevelopment())
 
 app.UseForwardedHeaders();
 
+app.UseRequestLocalization();
 app.UseStaticFiles();
 app.UseRateLimiter();
 
@@ -164,6 +181,25 @@ app.MapScalarApiReference("/api/docs");
 app.MapPublicEndpoints();
 app.MapCiEndpoints();
 app.MapAuthEndpoints();
+
+// Set the UI language cookie and bounce back to where the user was.
+// GET is fine — switching language is not a security-sensitive action and
+// keeping it GET means the chooser can be a plain <a> link in the sidebar.
+app.MapGet("/account/culture", (HttpContext ctx, string lang, string? returnUrl) =>
+{
+    var code = UiStrings.Languages.Any(l => l.Code == lang) ? lang : "en";
+    ctx.Response.Cookies.Append(
+        CookieRequestCultureProvider.DefaultCookieName,
+        CookieRequestCultureProvider.MakeCookieValue(new RequestCulture(code)),
+        new CookieOptions
+        {
+            Expires     = DateTimeOffset.UtcNow.AddYears(1),
+            IsEssential = true,
+            SameSite    = SameSiteMode.Lax,
+            HttpOnly    = false,
+        });
+    return Results.LocalRedirect(string.IsNullOrEmpty(returnUrl) ? "/" : returnUrl);
+}).AllowAnonymous();
 
 app.MapRazorComponents<AppShell>()
     .AddInteractiveServerRenderMode();

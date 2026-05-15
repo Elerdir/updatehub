@@ -1,0 +1,24 @@
+@inject NavigationManager Nav
+@inject UpdateHub.Web.Localization.Translator L
+@using UpdateHub.Web.Localization
+
+<div class="chooser">
+    <div class="chooser-label">@L["nav.language"]</div>
+    <div class="chooser-row">
+        @foreach (var (code, label) in UiStrings.Languages)
+        {
+            <a class="@(code == L.CurrentLanguage ? "active" : "")"
+               href="@Url(code)">@label</a>
+        }
+    </div>
+</div>
+
+@code {
+    private string Url(string code)
+    {
+        // Strip the origin so the redirect target stays a relative path
+        // (UseLocalRedirect refuses absolute URLs).
+        var current = Nav.ToBaseRelativePath(Nav.Uri);
+        return $"/account/culture?lang={code}&returnUrl=/{Uri.EscapeDataString(current)}";
+    }
+}

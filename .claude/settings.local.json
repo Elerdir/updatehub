@@ -29,7 +29,8 @@
       "Bash(gh run *)",
       "Bash(Get-ChildItem -Path \"E:/Projects/updatehub\" -Recurse -Filter \"*.dll\")",
       "Bash(Unblock-File)",
-      "Bash(Write-Host \"Unblocked\")"
+      "Bash(Write-Host \"Unblocked\")",
+      "Bash(docker exec *)"
     ]
   }
 }

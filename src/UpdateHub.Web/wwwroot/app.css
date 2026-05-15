@@ -1,18 +1,51 @@
 /* ===== Variables ===== */
+/* Light theme = defaults. Dark applied via [data-theme="dark"] or
+   automatically when prefers-color-scheme: dark + no explicit override. */
 :root {
-    --bg:            #0f1117;
-    --surface:       #1a1d27;
-    --surface2:      #252836;
-    --border:        #2d3148;
-    --text:          #e2e8f0;
-    --muted:         #8892a4;
+    --bg:            #ffffff;
+    --surface:       #f8f9fb;
+    --surface2:      #eef0f5;
+    --border:        #e2e5ec;
+    --text:          #1a1d27;
+    --muted:         #6b7280;
     --primary:       #6366f1;
     --primary-hover: #4f46e5;
     --success:       #10b981;
     --warning:       #f59e0b;
     --danger:        #ef4444;
+    --danger-text:   #b91c1c;
+    --draft-text:    #4f46e5;
+    --backdrop:      rgba(0,0,0,0.4);
     --radius:        8px;
     --sidebar-w:     220px;
+}
+
+/* Auto theme — follow OS preference when user hasn't picked one */
+@media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+        --bg:          #0f1117;
+        --surface:     #1a1d27;
+        --surface2:    #252836;
+        --border:      #2d3148;
+        --text:        #e2e8f0;
+        --muted:       #8892a4;
+        --danger-text: #fca5a5;
+        --draft-text:  #818cf8;
+        --backdrop:    rgba(0,0,0,0.7);
+    }
+}
+
+/* Explicit overrides — win regardless of OS preference */
+:root[data-theme="dark"] {
+    --bg:          #0f1117;
+    --surface:     #1a1d27;
+    --surface2:    #252836;
+    --border:      #2d3148;
+    --text:        #e2e8f0;
+    --muted:       #8892a4;
+    --danger-text: #fca5a5;
+    --draft-text:  #818cf8;
+    --backdrop:    rgba(0,0,0,0.7);
 }
 
 /* ===== Reset ===== */
@@ -195,7 +228,7 @@ small { font-size: 12px; }
     text-transform: uppercase;
     letter-spacing: 0.04em;
 }
-.badge.draft     { background: rgba(99,102,241,0.15); color: #818cf8; }
+.badge.draft     { background: rgba(99,102,241,0.15); color: var(--draft-text); }
 .badge.published { background: rgba(16,185,129,0.15); color: var(--success); }
 .badge.archived  { background: rgba(107,114,128,0.15); color: var(--muted); }
 .badge.mandatory { background: rgba(245,158,11,0.15); color: var(--warning); }
@@ -295,7 +328,7 @@ input:focus, select:focus, textarea:focus {
     border-radius: var(--radius);
     padding: 10px 14px;
     margin-bottom: 14px;
-    color: #fca5a5;
+    color: var(--danger-text);
     font-size: 13px;
 }
 
@@ -307,7 +340,7 @@ input:focus, select:focus, textarea:focus {
 .modal-backdrop {
     position: fixed;
     inset: 0;
-    background: rgba(0,0,0,0.7);
+    background: var(--backdrop);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -358,3 +391,24 @@ input:focus, select:focus, textarea:focus {
 /* ===== Settings ===== */
 .token-display { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
 .token-box { flex: 1; background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 12px; font-family: 'Cascadia Code','Fira Code',monospace; font-size: 13px; color: var(--text); word-break: break-all; }
+
+/* ===== Sidebar footer chooser (theme + language) ===== */
+.chooser { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+.chooser-label { color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; }
+.chooser-row { display: flex; gap: 4px; }
+.chooser-row button, .chooser-row a {
+    flex: 1;
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--muted);
+    padding: 4px 6px;
+    border-radius: 4px;
+    font-size: 11px;
+    text-align: center;
+    cursor: pointer;
+    text-decoration: none;
+    transition: all 0.15s;
+    font-family: inherit;
+}
+.chooser-row button:hover, .chooser-row a:hover { color: var(--text); border-color: var(--text); text-decoration: none; }
+.chooser-row button.active, .chooser-row a.active { color: var(--primary); border-color: var(--primary); }
