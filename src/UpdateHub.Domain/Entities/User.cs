@@ -39,6 +39,14 @@ public class User
 
     public bool TotpEnabled { get; set; }
 
+    /// <summary>
+    /// Optional contact email for account-event notifications (account created,
+    /// password reset). When null the user is not notified — admin still gets
+    /// the global notification at <c>Smtp:To</c>. We never send the actual
+    /// password through this channel; that goes out-of-band.
+    /// </summary>
+    public string? Email { get; set; }
+
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public DateTime? LastLoginAt { get; set; }
 

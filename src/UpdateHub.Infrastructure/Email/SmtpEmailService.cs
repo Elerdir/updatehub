@@ -14,13 +14,14 @@ public class SmtpEmailService(
     ILogger<SmtpEmailService> logger)
     : IEmailService
 {
-    public async Task SendAsync(string subject, string body)
+    public async Task SendAsync(string subject, string body, string? toOverride = null)
     {
         var cfg = await settings.GetSmtpConfigAsync();
 
         // Effective config = DB value if set, otherwise the environment / appsettings value.
         var host     = cfg.Host     ?? config["UpdateHub:Smtp:Host"];
-        var to       = cfg.To       ?? config["UpdateHub:Smtp:To"];
+        var defaultTo = cfg.To      ?? config["UpdateHub:Smtp:To"];
+        var to       = !string.IsNullOrWhiteSpace(toOverride) ? toOverride : defaultTo;
         var port     = cfg.Host     is null
             ? (int.TryParse(config["UpdateHub:Smtp:Port"], out var p) ? p : 587)
             : cfg.Port;
@@ -29,7 +30,7 @@ public class SmtpEmailService(
         var password = cfg.Password ?? config["UpdateHub:Smtp:Password"];
 
         if (string.IsNullOrWhiteSpace(host) || string.IsNullOrWhiteSpace(to))
-            return; // SMTP not configured — silently skip
+            return; // SMTP not configured (or no recipient) — silently skip
 
         var message = new MimeMessage();
         message.From.Add(MailboxAddress.Parse(from));

@@ -73,4 +73,50 @@ public class EmailNotificationService(IEmailService email)
         email.SendAsync(
             "[UpdateHub] Test message",
             $"This is a test message from UpdateHub. SMTP is configured correctly. Time: {DateTime.UtcNow:u}");
+
+    // ── User-targeted notifications (go to the user's own email) ─────────────
+    // Passwords are NEVER included; the admin delivers them out-of-band.
+
+    public Task SendAccountCreatedToUserAsync(string? userEmail, string username, string role) =>
+        string.IsNullOrWhiteSpace(userEmail)
+            ? Task.CompletedTask
+            : email.SendAsync(
+                "[UpdateHub] Your account has been created",
+                $"""
+                Hello {username},
+
+                An UpdateHub account has been created for you.
+
+                Username: {username}
+                Role:     {role}
+                Time:     {DateTime.UtcNow:u}
+
+                Your temporary password will be delivered to you separately
+                by the administrator. You will be required to change it on
+                your first sign-in.
+
+                If you did not expect this, contact the administrator.
+                """,
+                toOverride: userEmail);
+
+    public Task SendPasswordResetToUserAsync(string? userEmail, string username) =>
+        string.IsNullOrWhiteSpace(userEmail)
+            ? Task.CompletedTask
+            : email.SendAsync(
+                "[UpdateHub] Your password has been reset",
+                $"""
+                Hello {username},
+
+                An administrator has reset your UpdateHub password.
+
+                Time: {DateTime.UtcNow:u}
+
+                Your new temporary password will be delivered to you separately
+                by the administrator. You will be required to change it on
+                your next sign-in.
+
+                If you did not request this, contact the administrator
+                immediately — your account may be compromised.
+                """,
+                toOverride: userEmail);
 }

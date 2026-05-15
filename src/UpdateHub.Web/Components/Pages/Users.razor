@@ -35,6 +35,10 @@
             </div>
         </div>
         <div class="field">
+            <label>@L["users.email"] <span class="hint">@L["users.email.hint"]</span></label>
+            <input type="email" @bind="newEmail" autocomplete="off" placeholder="user@example.com" />
+        </div>
+        <div class="field">
             <label>@L["users.tempPassword"]</label>
             <div style="display:flex;gap:8px;">
                 <input @bind="newTempPw" autocomplete="off" style="flex:1;" />
@@ -59,7 +63,7 @@
                 <div style="color:var(--muted);font-size:12px;margin-top:4px;">@L["users.copyNow.hint"]</div>
             </div>
             <div style="display:flex;gap:8px;align-items:center;">
-                <code style="font-size:13px;padding:6px 10px;background:var(--code-bg,var(--surface2));border-radius:4px;">@lastTempPassword</code>
+                <code style="font-size:13px;padding:6px 10px;background:var(--surface2);border-radius:4px;">@lastTempPassword</code>
                 <button class="btn-ghost btn-sm" @onclick="CopyTemp">@L["common.copy"]</button>
                 <button class="btn-ghost btn-sm" @onclick="() => lastTempPassword = null">×</button>
             </div>
@@ -78,6 +82,7 @@ else
         <thead>
             <tr>
                 <th>@L["users.username"]</th>
+                <th>@L["users.email"]</th>
                 <th>@L["users.role"]</th>
                 <th>@L["users.status"]</th>
                 <th>@L["users.lastLogin"]</th>
@@ -99,6 +104,18 @@ else
                         {
                             <span class="badge published" style="margin-left:8px;">@L["users.you"]</span>
                         }
+                    </td>
+                    <td>
+                        @if (string.IsNullOrEmpty(u.Email))
+                        {
+                            <span style="color:var(--muted);font-size:12px;">—</span>
+                        }
+                        else
+                        {
+                            <span style="font-size:13px;">@u.Email</span>
+                        }
+                        <button class="btn-ghost btn-sm" style="margin-left:6px;padding:2px 8px;font-size:11px;"
+                                @onclick="() => StartEditEmail(u)">@L["common.edit"]</button>
                     </td>
                     <td>
                         <select value="@u.Role" @onchange="@(e => ChangeRole(u.Id, e.Value?.ToString() ?? ""))"
@@ -162,6 +179,25 @@ else
     </div>
 }
 
+@if (editEmailUser is not null)
+{
+    <div class="modal-backdrop">
+        <div class="modal-card">
+            <h2>@L["users.email.edit"]: @editEmailUser.Username</h2>
+            <p style="color:var(--muted);font-size:13px;">@L["users.email.hint"]</p>
+            <div class="field">
+                <label>@L["users.email"]</label>
+                <input type="email" @bind="editEmailValue" placeholder="user@example.com" autocomplete="off" />
+            </div>
+            @if (editEmailError is not null) { <div class="error">@editEmailError</div> }
+            <div class="form-actions">
+                <button class="btn-primary" @onclick="ConfirmEditEmail">@L["common.save"]</button>
+                <button class="btn-ghost" @onclick="() => { editEmailUser = null; editEmailError = null; }">@L["common.cancel"]</button>
+            </div>
+        </div>
+    </div>
+}
+
 @code {
     private List<UpdateHub.Domain.Entities.User>? users;
     private Guid currentUserId;
@@ -170,6 +206,7 @@ else
     private bool   showCreate;
     private string newUsername = "";
     private string newRole     = "Viewer";
+    private string? newEmail;
     private string? newTempPw;
     private string? createError;
 
@@ -180,6 +217,10 @@ else
     private UpdateHub.Domain.Entities.User? resetUser;
     private string? resetTempPw;
     private string? resetError;
+
+    private UpdateHub.Domain.Entities.User? editEmailUser;
+    private string? editEmailValue;
+    private string? editEmailError;
 
     protected override async Task OnInitializedAsync()
     {
@@ -192,7 +233,7 @@ else
 
     private async Task Load() => users = await UserSvc.GetAllAsync();
 
-    private void GenerateTemp() => newTempPw = UserService.GenerateTempPassword();
+    private void GenerateTemp()      => newTempPw   = UserService.GenerateTempPassword();
     private void GenerateResetTemp() => resetTempPw = UserService.GenerateTempPassword();
 
     private async Task CreateUser()
@@ -202,7 +243,7 @@ else
         {
             var role = Enum.Parse<UserRole>(newRole);
             var pw   = string.IsNullOrWhiteSpace(newTempPw) ? UserService.GenerateTempPassword() : newTempPw;
-            await UserSvc.CreateAsync(newUsername, pw, role, currentUserId, currentUserName);
+            await UserSvc.CreateAsync(newUsername, newEmail, pw, role, currentUserId, currentUserName);
             lastTempPassword = pw;
             lastTempUsername = newUsername;
             await CancelCreate();
@@ -216,6 +257,7 @@ else
         showCreate  = false;
         newUsername = "";
         newRole     = "Viewer";
+        newEmail    = null;
         newTempPw   = null;
         createError = null;
         return Task.CompletedTask;
@@ -252,6 +294,26 @@ else
             await Load();
         }
         catch (Exception ex) { resetError = ex.Message; }
+    }
+
+    private void StartEditEmail(UpdateHub.Domain.Entities.User u)
+    {
+        editEmailUser  = u;
+        editEmailValue = u.Email;
+        editEmailError = null;
+    }
+
+    private async Task ConfirmEditEmail()
+    {
+        if (editEmailUser is null) return;
+        editEmailError = null;
+        try
+        {
+            await UserSvc.SetEmailAsync(editEmailUser.Id, editEmailValue, currentUserName);
+            editEmailUser = null;
+            await Load();
+        }
+        catch (Exception ex) { editEmailError = ex.Message; }
     }
 
     private async Task Toggle(Guid userId, bool active)

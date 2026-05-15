@@ -42,10 +42,16 @@ public class UserService(
     /// user; the caller already knows the plaintext temp password.
     /// </summary>
     public async Task<User> CreateAsync(
-        string username, string tempPassword, UserRole role, Guid createdById, string createdByName)
+        string  username,
+        string? email,
+        string  tempPassword,
+        UserRole role,
+        Guid    createdById,
+        string  createdByName)
     {
         RoleGuard.Require(currentUser, Admin);
         username = username.Trim();
+        email    = string.IsNullOrWhiteSpace(email) ? null : email.Trim();
         if (username.Length < 3)
             throw new ArgumentException("Username must be at least 3 characters.");
         if (tempPassword.Length < MinPasswordLength)
@@ -58,6 +64,7 @@ public class UserService(
         var user = new User
         {
             Username           = username,
+            Email              = email,
             PasswordHash       = BCrypt.Net.BCrypt.HashPassword(tempPassword, workFactor: 12),
             Role               = role,
             MustChangePassword = true,
@@ -70,10 +77,15 @@ public class UserService(
             entityType: "User", entityId: created.Id.ToString(),
             details: $"{username} ({role})");
 
+        // Admin notification goes to the global mailbox; if the new user has
+        // an email of their own they also get a heads-up (without the password).
+        var roleText = role.ToString();
+        var userEmail = email;
         notifications.Enqueue(async (sp, _) =>
         {
             var em = sp.GetRequiredService<EmailNotificationService>();
-            await em.SendUserCreatedAsync(username, role.ToString(), createdByName);
+            await em.SendUserCreatedAsync(username, roleText, createdByName);
+            await em.SendAccountCreatedToUserAsync(userEmail, username, roleText);
         });
 
         return created;
@@ -102,11 +114,13 @@ public class UserService(
             entityType: "User", entityId: userId.ToString(),
             details: user.Username);
 
-        var username = user.Username;
+        var username  = user.Username;
+        var userEmail = user.Email;
         notifications.Enqueue(async (sp, _) =>
         {
             var em = sp.GetRequiredService<EmailNotificationService>();
             await em.SendPasswordResetAsync(username, resetByName);
+            await em.SendPasswordResetToUserAsync(userEmail, username);
         });
     }
 
@@ -164,6 +178,23 @@ public class UserService(
         await audit.LogAsync(active ? "EnableUser" : "DisableUser",
             actor: actorName, entityType: "User", entityId: userId.ToString(),
             details: user.Username);
+    }
+
+    public async Task SetEmailAsync(Guid userId, string? email, string actorName)
+    {
+        RoleGuard.Require(currentUser, Admin);
+        var user = await users.GetByIdAsync(userId)
+            ?? throw new InvalidOperationException("User not found.");
+
+        var normalized = string.IsNullOrWhiteSpace(email) ? null : email.Trim();
+        if (user.Email == normalized) return;
+
+        user.Email = normalized;
+        await users.UpdateAsync(user);
+
+        await audit.LogAsync("ChangeUserEmail", actor: actorName,
+            entityType: "User", entityId: userId.ToString(),
+            details: $"{user.Username} → {normalized ?? "(none)"}");
     }
 
     public async Task SetRoleAsync(Guid userId, UserRole role, string actorName)

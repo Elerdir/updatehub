@@ -69,6 +69,9 @@ public static class UiStrings
             ["users.you"]              = "You",
             ["users.copyNow.title"]    = "Temporary password — copy now",
             ["users.copyNow.hint"]     = "This is the only time it will be shown. Share it with the user via a secure channel.",
+            ["users.email"]            = "Email",
+            ["users.email.hint"]       = "Optional — used only to notify the user when their account is created or their password is reset (the password itself is never sent by email).",
+            ["users.email.edit"]       = "Edit email",
 
             // Account page
             ["account.title"]            = "My Account",
@@ -316,6 +319,9 @@ public static class UiStrings
             ["users.you"]              = "Vy",
             ["users.copyNow.title"]    = "Dočasné heslo — zkopírovat hned",
             ["users.copyNow.hint"]     = "Heslo se zobrazí pouze jednou. Předejte ho uživateli bezpečným kanálem.",
+            ["users.email"]            = "Email",
+            ["users.email.hint"]       = "Volitelné — použije se pouze pro upozornění uživatele o vytvoření účtu nebo resetu hesla (samotné heslo se emailem nikdy neposílá).",
+            ["users.email.edit"]       = "Upravit email",
 
             // Account page
             ["account.title"]            = "Můj účet",
@@ -563,6 +569,9 @@ public static class UiStrings
             ["users.you"]              = "Sie",
             ["users.copyNow.title"]    = "Temporäres Passwort — jetzt kopieren",
             ["users.copyNow.hint"]     = "Wird nur einmal angezeigt. Übermitteln Sie es dem Benutzer über einen sicheren Kanal.",
+            ["users.email"]            = "E-Mail",
+            ["users.email.hint"]       = "Optional — wird nur verwendet, um den Benutzer über die Kontoerstellung oder einen Passwort-Reset zu benachrichtigen (das Passwort selbst wird niemals per E-Mail gesendet).",
+            ["users.email.edit"]       = "E-Mail bearbeiten",
 
             // Account page
             ["account.title"]            = "Mein Konto",
