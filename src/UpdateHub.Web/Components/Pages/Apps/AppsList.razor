@@ -3,13 +3,14 @@
 @rendermode InteractiveServer
 @inject AdminService AdminSvc
 @inject NavigationManager Nav
+@inject UpdateHub.Web.Localization.Translator L
 
-<PageTitle>Applications — UpdateHub</PageTitle>
+<PageTitle>@L["page.apps"] — UpdateHub</PageTitle>
 
 <div class="page-header">
-    <h1>Applications</h1>
+    <h1>@L["page.apps"]</h1>
     <AuthorizeView Roles="Admin,Manager">
-        <button class="btn-primary" @onclick="() => showForm = true">+ New Application</button>
+        <button class="btn-primary" @onclick="() => showForm = true">+ @L["apps.new"]</button>
     </AuthorizeView>
 </div>
 
@@ -17,17 +18,17 @@
 {
     <div class="modal-backdrop">
         <div class="modal-card">
-            <h2>New Application</h2>
+            <h2>@L["apps.new"]</h2>
             <div class="field">
-                <label>Slug <span class="hint">(unique ID used in API calls, e.g. container-commander)</span></label>
+                <label>@L["apps.slug"] <span class="hint">@L["apps.slug.hint"]</span></label>
                 <input @bind="newSlug" placeholder="my-app" />
             </div>
             <div class="field">
-                <label>Name</label>
+                <label>@L["common.name"]</label>
                 <input @bind="newName" placeholder="My Application" />
             </div>
             <div class="field">
-                <label>Description (optional)</label>
+                <label>@L["apps.descriptionOptional"]</label>
                 <textarea @bind="newDescription" rows="2"></textarea>
             </div>
             @if (formError is not null)
@@ -35,8 +36,8 @@
                 <div class="error">@formError</div>
             }
             <div class="form-actions">
-                <button class="btn-primary" @onclick="CreateApp">Create</button>
-                <button class="btn-ghost" @onclick="CancelForm">Cancel</button>
+                <button class="btn-primary" @onclick="CreateApp">@L["common.create"]</button>
+                <button class="btn-ghost" @onclick="CancelForm">@L["common.cancel"]</button>
             </div>
         </div>
     </div>
@@ -44,12 +45,12 @@
 
 @if (apps is null)
 {
-    <p class="loading">Loading...</p>
+    <p class="loading">@L["common.loading"]</p>
 }
 else if (apps.Count == 0)
 {
     <div class="empty-state">
-        <p>No applications registered yet.</p>
+        <p>@L["apps.empty"]</p>
     </div>
 }
 else
@@ -57,10 +58,10 @@ else
     <table class="table">
         <thead>
             <tr>
-                <th>Name</th>
-                <th>Slug</th>
-                <th>Releases</th>
-                <th>Created</th>
+                <th>@L["common.name"]</th>
+                <th>@L["apps.slug"]</th>
+                <th>@L["apps.releases"]</th>
+                <th>@L["apps.col.created"]</th>
                 <th></th>
             </tr>
         </thead>
@@ -72,7 +73,7 @@ else
                     <td><code>@app.Slug</code></td>
                     <td>@app.Releases.Count</td>
                     <td>@app.CreatedAt.ToString("yyyy-MM-dd")</td>
-                    <td><a href="/apps/@app.Slug">Manage →</a></td>
+                    <td><a href="/apps/@app.Slug">@L["releases.manage"]</a></td>
                 </tr>
             }
         </tbody>
@@ -92,8 +93,8 @@ else
     private async Task CreateApp()
     {
         formError = null;
-        if (string.IsNullOrWhiteSpace(newSlug)) { formError = "Slug is required."; return; }
-        if (string.IsNullOrWhiteSpace(newName))  { formError = "Name is required."; return; }
+        if (string.IsNullOrWhiteSpace(newSlug)) { formError = L["apps.err.slugRequired"]; return; }
+        if (string.IsNullOrWhiteSpace(newName))  { formError = L["apps.err.nameRequired"]; return; }
 
         try
         {
@@ -102,7 +103,7 @@ else
         }
         catch (Exception ex)
         {
-            formError = ex.Message.Contains("UNIQUE") ? "Slug already exists." : ex.Message;
+            formError = ex.Message.Contains("UNIQUE") ? L["apps.err.slugExists"] : ex.Message;
         }
     }
 

@@ -94,6 +94,15 @@ small { font-size: 12px; }
 .sidebar ul li a:hover { color: var(--text); text-decoration: none; background: var(--surface2); }
 .sidebar ul li a.active { color: var(--text); border-left-color: var(--primary); background: var(--surface2); }
 .sidebar-footer { padding: 16px 20px; border-top: 1px solid var(--border); }
+
+/* Current-user info block above the logout button */
+.user-info { margin-bottom: 12px; }
+.user-info-label { color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 2px; }
+.user-info-name  { color: var(--text);  font-size: 14px; font-weight: 600; margin-bottom: 6px; word-break: break-word; }
+.user-info-role  { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; }
+.user-info-role.role-admin   { background: rgba(99,102,241,0.15); color: var(--primary); }
+.user-info-role.role-manager { background: rgba(245,158,11,0.15); color: var(--warning); }
+.user-info-role.role-viewer  { background: rgba(107,114,128,0.15); color: var(--muted); }
 .btn-logout {
     background: none;
     border: 1px solid var(--border);

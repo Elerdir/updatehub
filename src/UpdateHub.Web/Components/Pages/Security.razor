@@ -2,12 +2,13 @@
 @attribute [Authorize]
 @rendermode InteractiveServer
 @inject BruteForceProtectionService BruteForceSvc
+@inject UpdateHub.Web.Localization.Translator L
 @using UpdateHub.Domain.Entities
 
-<PageTitle>Security — UpdateHub</PageTitle>
+<PageTitle>@L["page.security"] — UpdateHub</PageTitle>
 
 <div class="page-header">
-    <h1>Security</h1>
+    <h1>@L["page.security"]</h1>
 </div>
 
 @if (attempts is not null)
@@ -15,24 +16,24 @@
     <div class="stats" style="margin-bottom:24px;">
         <div class="stat-card">
             <span class="stat-value">@attempts.Count(a => a.IsBlocked)</span>
-            <span class="stat-label">Blocked IPs</span>
+            <span class="stat-label">@L["security.blockedIps"]</span>
         </div>
         <div class="stat-card">
             <span class="stat-value">@attempts.Count(a => !a.IsBlocked && a.FailedAttempts > 0)</span>
-            <span class="stat-label">Suspicious IPs</span>
+            <span class="stat-label">@L["security.suspiciousIps"]</span>
         </div>
         <div class="stat-card">
             <span class="stat-value">@BruteForceProtectionService.MaxFailedAttempts</span>
-            <span class="stat-label">Auto-block threshold</span>
+            <span class="stat-label">@L["security.threshold"]</span>
         </div>
     </div>
 
     <div class="section-header">
-        <h2>Login Attempts</h2>
+        <h2>@L["security.loginAttempts"]</h2>
         <div style="display:flex;gap:8px;align-items:center;">
             <input @bind="filterIp" @bind:event="oninput"
-                   placeholder="Filter by IP…" style="width:200px;padding:6px 10px;" />
-            <button class="btn-ghost btn-sm" @onclick="Reload">Refresh</button>
+                   placeholder="@L["security.filterIp"]" style="width:200px;padding:6px 10px;" />
+            <button class="btn-ghost btn-sm" @onclick="Reload">@L["common.refresh"]</button>
         </div>
     </div>
 
@@ -41,36 +42,36 @@
         {
             <div class="card" style="margin-bottom:16px;">
                 <div style="display:flex;align-items:center;gap:12px;">
-                    <input @bind="manualBlockIp" placeholder="IP address" style="width:200px;padding:6px 10px;" />
-                    <button class="btn-danger btn-sm" @onclick="ManualBlock">Block this IP</button>
-                    <button class="btn-ghost btn-sm" @onclick="() => manualBlockIp = null">Cancel</button>
+                    <input @bind="manualBlockIp" placeholder="@L["security.col.ip"]" style="width:200px;padding:6px 10px;" />
+                    <button class="btn-danger btn-sm" @onclick="ManualBlock">@L["security.blockThis"]</button>
+                    <button class="btn-ghost btn-sm" @onclick="() => manualBlockIp = null">@L["common.cancel"]</button>
                 </div>
             </div>
         }
         else
         {
             <div style="margin-bottom:16px;">
-                <button class="btn-danger-outline btn-sm" @onclick="() => manualBlockIp = string.Empty">+ Block IP manually…</button>
+                <button class="btn-danger-outline btn-sm" @onclick="() => manualBlockIp = string.Empty">@L["security.blockManual"]</button>
             </div>
         }
     </AuthorizeView>
 
     @if (!Filtered.Any())
     {
-        <div class="empty-state"><p>No login attempts recorded yet.</p></div>
+        <div class="empty-state"><p>@L["security.empty"]</p></div>
     }
     else
     {
         <table class="table">
             <thead>
                 <tr>
-                    <th>IP Address</th>
-                    <th>Status</th>
-                    <th>Failed</th>
-                    <th>First Seen</th>
-                    <th>Last Attempt</th>
-                    <th>Unblocked At</th>
-                    <th>User Agent</th>
+                    <th>@L["security.col.ip"]</th>
+                    <th>@L["security.col.status"]</th>
+                    <th>@L["security.col.failed"]</th>
+                    <th>@L["security.col.firstSeen"]</th>
+                    <th>@L["security.col.lastAttempt"]</th>
+                    <th>@L["security.col.unblockedAt"]</th>
+                    <th>@L["security.col.userAgent"]</th>
                     <th></th>
                 </tr>
             </thead>
@@ -90,14 +91,14 @@
                                 <div style="display:flex;gap:6px;">
                                     @if (a.IsBlocked)
                                     {
-                                        <button class="btn-sm btn-outline" @onclick="() => Unblock(a.IpAddress)">Unblock</button>
+                                        <button class="btn-sm btn-outline" @onclick="() => Unblock(a.IpAddress)">@L["security.unblock"]</button>
                                     }
                                     else
                                     {
-                                        <button class="btn-danger-sm" @onclick="() => Block(a.IpAddress)">Block</button>
+                                        <button class="btn-danger-sm" @onclick="() => Block(a.IpAddress)">@L["security.block"]</button>
                                     }
                                     <button class="btn-ghost btn-sm" @onclick="() => DeleteRecord(a.IpAddress)"
-                                            title="Remove record">✕</button>
+                                            title="@L["security.removeRecord"]">✕</button>
                                 </div>
                             </AuthorizeView>
                         </td>
@@ -109,7 +110,7 @@
 }
 else
 {
-    <p class="loading">Loading…</p>
+    <p class="loading">@L["common.loading"]</p>
 }
 
 @code {
@@ -156,21 +157,21 @@ else
         await Reload();
     }
 
-    private static RenderFragment StatusBadge(LoginAttempt a) => __builder =>
+    private RenderFragment StatusBadge(LoginAttempt a) => __builder =>
     {
         if (a.IsBlocked)
         {
-            var label = a.IsManualBlock ? "Blocked (manual)" : "Blocked (auto)";
-            var cls   = "badge danger";
-            __builder.AddMarkupContent(0, $"<span class=\"{cls}\">{label}</span>");
+            var label = a.IsManualBlock ? L["security.status.blocked.manual"] : L["security.status.blocked.auto"];
+            __builder.AddMarkupContent(0, $"<span class=\"badge danger\">{label}</span>");
         }
         else if (a.FailedAttempts > 0)
         {
-            __builder.AddMarkupContent(0, $"<span class=\"badge warning\">Suspicious ({a.FailedAttempts}x)</span>");
+            var label = $"{L["security.status.suspicious"]} ({a.FailedAttempts}×)";
+            __builder.AddMarkupContent(0, $"<span class=\"badge warning\">{label}</span>");
         }
         else
         {
-            __builder.AddMarkupContent(0, "<span class=\"badge published\">OK</span>");
+            __builder.AddMarkupContent(0, $"<span class=\"badge published\">{L["security.status.ok"]}</span>");
         }
     };
 

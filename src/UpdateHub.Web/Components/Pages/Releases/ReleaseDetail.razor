@@ -3,17 +3,18 @@
 @rendermode InteractiveServer
 @inject AdminService AdminSvc
 @inject NavigationManager Nav
+@inject UpdateHub.Web.Localization.Translator L
 
-<PageTitle>Release @(release?.Version ?? "") — UpdateHub</PageTitle>
+<PageTitle>@L["releases.version"] @(release?.Version ?? "") — UpdateHub</PageTitle>
 
 @if (release is null)
 {
-    <p class="loading">Loading...</p>
+    <p class="loading">@L["common.loading"]</p>
 }
 else
 {
     <div class="breadcrumb">
-        <a href="/apps">Applications</a> /
+        <a href="/apps">@L["page.apps"]</a> /
         <a href="/apps/@release.App.Slug">@release.App.Name</a> /
         @release.Version
     </div>
@@ -21,21 +22,21 @@ else
     <div class="page-header">
         <div class="page-header-left">
             <h1>@release.Version</h1>
-            <span class="badge @release.Status.ToString().ToLower()">@release.Status</span>
-            <span class="badge channel-@release.Channel.ToString().ToLower()">@release.Channel</span>
-            @if (release.IsMandatory) { <span class="badge mandatory">Mandatory</span> }
+            <span class="badge @release.Status.ToString().ToLower()">@L[$"releases.status.{release.Status.ToString().ToLower()}"]</span>
+            <span class="badge channel-@release.Channel.ToString().ToLower()">@L[$"releases.channel.{release.Channel.ToString().ToLower()}"]</span>
+            @if (release.IsMandatory) { <span class="badge mandatory">@L["releases.mandatoryBadge"]</span> }
         </div>
         <div class="header-actions">
             <AuthorizeView Roles="Admin,Manager">
                 @if (release.Status == ReleaseStatus.Draft)
                 {
-                    <button class="btn-primary" @onclick="Publish">Publish</button>
+                    <button class="btn-primary" @onclick="Publish">@L["common.publish"]</button>
                 }
                 @if (release.Status == ReleaseStatus.Published)
                 {
-                    <button class="btn-danger-outline" @onclick="Archive">Archive</button>
+                    <button class="btn-danger-outline" @onclick="Archive">@L["common.archive"]</button>
                 }
-                <button class="btn-ghost btn-sm" @onclick="ConfirmDelete">Delete release</button>
+                <button class="btn-ghost btn-sm" @onclick="ConfirmDelete">@L["common.delete"]</button>
             </AuthorizeView>
         </div>
     </div>
@@ -43,21 +44,21 @@ else
     @if (!string.IsNullOrWhiteSpace(release.ReleaseNotes))
     {
         <div class="release-notes card">
-            <div class="release-notes-title">Release Notes</div>
+            <div class="release-notes-title">@L["releases.notes"]</div>
             <MarkdownView Content="@release.ReleaseNotes" />
         </div>
     }
 
     <div class="section-header">
-        <h2>Artifacts</h2>
+        <h2>@L["releases.artifacts"]</h2>
     </div>
 
     <AuthorizeView Roles="Admin,Manager">
     <div class="card upload-form">
-        <h3>Upload Artifact</h3>
+        <h3>@L["releases.upload"]</h3>
         <div class="form-row">
             <div class="field">
-                <label>Platform</label>
+                <label>@L["releases.col.platform"]</label>
                 <select @bind="uploadPlatform">
                     <option value="windows">Windows</option>
                     <option value="macos">macOS</option>
@@ -65,7 +66,7 @@ else
                 </select>
             </div>
             <div class="field">
-                <label>Architecture</label>
+                <label>@L["releases.col.arch"]</label>
                 <select @bind="uploadArch">
                     <option value="x64">x64</option>
                     <option value="arm64">arm64</option>
@@ -74,23 +75,22 @@ else
             </div>
         </div>
         <div class="field">
-            <label>Tauri Ed25519 Signature <span class="hint">(only needed for Tauri apps)</span></label>
-            <input @bind="uploadSignature" placeholder="paste signature from tauri signer..." />
+            <label>@L["releases.signature"] <span class="hint">@L["releases.signature.hint"]</span></label>
+            <input @bind="uploadSignature" placeholder="@L["releases.signaturePlaceholder"]" />
         </div>
         <div class="field">
-            <label>File</label>
+            <label>@L["releases.file"]</label>
             <InputFile OnChange="FileSelected" />
         </div>
         @if (uploadError is not null) { <div class="error">@uploadError</div> }
-        @if (uploading) { <div class="info">Uploading, please wait...</div> }
+        @if (uploading) { <div class="info">@L["releases.uploading"]</div> }
         <div class="form-actions">
             <button class="btn-primary" @onclick="UploadArtifact"
                     disabled="@(selectedFile is null || uploading)">
-                Upload
+                @L["common.upload"]
             </button>
         </div>
     </div>
-
     </AuthorizeView>
 
     @if (release.Artifacts.Any())
@@ -98,13 +98,13 @@ else
         <table class="table">
             <thead>
                 <tr>
-                    <th>Platform</th>
-                    <th>Arch</th>
-                    <th>File</th>
-                    <th>Size</th>
+                    <th>@L["releases.col.platform"]</th>
+                    <th>@L["releases.col.arch"]</th>
+                    <th>@L["releases.col.file"]</th>
+                    <th>@L["releases.col.size"]</th>
                     <th>SHA-256</th>
-                    <th>Signature</th>
-                    <th>Downloads</th>
+                    <th>@L["releases.col.signature"]</th>
+                    <th>@L["releases.col.downloads"]</th>
                     <th></th>
                 </tr>
             </thead>
@@ -122,7 +122,7 @@ else
                         <td>
                             <AuthorizeView Roles="Admin,Manager">
                                 <button class="btn-danger-sm" @onclick="() => DeleteArtifact(a.Id)">
-                                    Delete
+                                    @L["common.delete"]
                                 </button>
                             </AuthorizeView>
                         </td>
@@ -133,18 +133,18 @@ else
     }
     else
     {
-        <div class="empty-state"><p>No artifacts uploaded yet.</p></div>
+        <div class="empty-state"><p>@L["releases.empty"]</p></div>
     }
 
     @if (confirmDelete)
     {
         <div class="modal-backdrop">
             <div class="modal-card">
-                <h2>Delete release @release.Version?</h2>
-                <p>All artifacts will also be deleted permanently.</p>
+                <h2>@L["releases.delete.confirm"] — @release.Version</h2>
+                <p>@L["releases.delete.warn"]</p>
                 <div class="form-actions">
-                    <button class="btn-danger" @onclick="DeleteRelease">Yes, delete</button>
-                    <button class="btn-ghost" @onclick="() => confirmDelete = false">Cancel</button>
+                    <button class="btn-danger" @onclick="DeleteRelease">@L["common.deleteYes"]</button>
+                    <button class="btn-ghost" @onclick="() => confirmDelete = false">@L["common.cancel"]</button>
                 </div>
             </div>
         </div>

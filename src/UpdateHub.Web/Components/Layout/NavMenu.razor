@@ -1,5 +1,6 @@
 @inject NavigationManager Nav
 @inject UpdateHub.Web.Localization.Translator L
+@using System.Security.Claims
 
 <nav class="sidebar">
     <div class="brand">UpdateHub</div>
@@ -15,6 +16,21 @@
         <li><NavLink href="/account">@L["nav.account"]</NavLink></li>
     </ul>
     <div class="sidebar-footer">
+        <AuthorizeView>
+            <Authorized>
+                <div class="user-info">
+                    <div class="user-info-label">@L["nav.signedInAs"]</div>
+                    <div class="user-info-name">@context.User.Identity?.Name</div>
+                    @{
+                        var role = context.User.FindFirst(ClaimTypes.Role)?.Value;
+                    }
+                    @if (!string.IsNullOrEmpty(role))
+                    {
+                        <span class="user-info-role role-@role.ToLower()">@L[$"role.{role}"]</span>
+                    }
+                </div>
+            </Authorized>
+        </AuthorizeView>
         <form method="post" action="/account/logout">
             <AntiforgeryToken />
             <button type="submit" class="btn-logout">@L["nav.logout"]</button>

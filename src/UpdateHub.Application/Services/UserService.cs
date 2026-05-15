@@ -148,6 +148,11 @@ public class UserService(
     public async Task SetActiveAsync(Guid userId, bool active, string actorName)
     {
         RoleGuard.Require(currentUser, Admin);
+        // An admin cannot deactivate their own account — locking yourself out
+        // of a single-admin install is the easiest way to brick the server.
+        if (!active && currentUser.Id == userId)
+            throw new InvalidOperationException("You cannot deactivate your own account.");
+
         var user = await users.GetByIdAsync(userId)
             ?? throw new InvalidOperationException("User not found.");
         if (user.IsActive == active) return;
@@ -164,6 +169,10 @@ public class UserService(
     public async Task SetRoleAsync(Guid userId, UserRole role, string actorName)
     {
         RoleGuard.Require(currentUser, Admin);
+        // An admin cannot change their own role — same lock-yourself-out risk.
+        if (currentUser.Id == userId)
+            throw new InvalidOperationException("You cannot change your own role.");
+
         var user = await users.GetByIdAsync(userId)
             ?? throw new InvalidOperationException("User not found.");
         if (user.Role == role) return;
