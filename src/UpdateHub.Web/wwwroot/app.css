@@ -422,7 +422,8 @@ input:focus, select:focus, textarea:focus {
     border-radius: var(--radius);
     font-size: 14px;
     font-family: inherit;
-    min-width: 180px;
+    width: 220px;
+    flex-shrink: 0;
     cursor: pointer;
     transition: border-color 0.15s;
 }
