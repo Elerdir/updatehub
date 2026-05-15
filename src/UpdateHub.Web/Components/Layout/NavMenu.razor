@@ -18,15 +18,20 @@
     <div class="sidebar-footer">
         <AuthorizeView>
             <Authorized>
+                @{
+                    var role = context.User.FindFirst(ClaimTypes.Role)?.Value;
+                }
                 <div class="user-info">
-                    <div class="user-info-label">@L["nav.signedInAs"]</div>
-                    <div class="user-info-name">@context.User.Identity?.Name</div>
-                    @{
-                        var role = context.User.FindFirst(ClaimTypes.Role)?.Value;
-                    }
+                    <div class="user-info-row">
+                        <span class="user-info-key">@L["nav.user"]:</span>
+                        <span class="user-info-value">@context.User.Identity?.Name</span>
+                    </div>
                     @if (!string.IsNullOrEmpty(role))
                     {
-                        <span class="user-info-role role-@role.ToLower()">@L[$"role.{role}"]</span>
+                        <div class="user-info-row">
+                            <span class="user-info-key">@L["nav.role"]:</span>
+                            <span class="user-info-role role-@role.ToLower()">@L[$"role.{role}"]</span>
+                        </div>
                     }
                 </div>
             </Authorized>

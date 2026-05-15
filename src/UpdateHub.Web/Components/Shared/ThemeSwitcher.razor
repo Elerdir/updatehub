@@ -1,41 +1,11 @@
-@rendermode InteractiveServer
-@inject IJSRuntime JS
 @inject UpdateHub.Web.Localization.Translator L
 
-<select class="pref-select" value="@_current" @onchange="OnChange">
+@* Pure-HTML select — theme.js (loaded in <head>) wires the change event
+   and seeds the initial value from localStorage. No Blazor state, no JS
+   interop, no render-mode dance — keeps it bulletproof regardless of
+   InteractiveServer hydration timing. *@
+<select class="pref-select js-theme-select">
     <option value="auto">🖥️ @L["nav.theme.auto"]</option>
     <option value="light">☀️ @L["nav.theme.light"]</option>
     <option value="dark">🌙 @L["nav.theme.dark"]</option>
 </select>
-
-@code {
-    private string _current = "auto";
-
-    // Read the user's saved choice from localStorage as soon as the circuit
-    // is up, so the dropdown reflects reality on the first interactive paint.
-    protected override async Task OnAfterRenderAsync(bool firstRender)
-    {
-        if (!firstRender) return;
-        try
-        {
-            var stored = await JS.InvokeAsync<string>("updateHubTheme.get");
-            if (stored != _current)
-            {
-                _current = stored;
-                StateHasChanged();
-            }
-        }
-        catch (JSDisconnectedException)
-        {
-            // Circuit gone — ignore, the next render will retry
-        }
-    }
-
-    private async Task OnChange(ChangeEventArgs e)
-    {
-        var value = e.Value?.ToString();
-        if (string.IsNullOrEmpty(value)) return;
-        _current = value;
-        await JS.InvokeVoidAsync("updateHubTheme.set", value);
-    }
-}

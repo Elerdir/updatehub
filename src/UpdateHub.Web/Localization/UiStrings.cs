@@ -171,6 +171,8 @@ public static class UiStrings
 
             // Navigation user info
             ["nav.signedInAs"]            = "Signed in as",
+            ["nav.user"]                  = "User",
+            ["nav.role"]                  = "Role",
 
             // Apps list
             ["apps.new"]                  = "New application",
@@ -416,6 +418,8 @@ public static class UiStrings
 
             // Navigation user info
             ["nav.signedInAs"]            = "Přihlášený jako",
+            ["nav.user"]                  = "Uživatel",
+            ["nav.role"]                  = "Role",
 
             // Apps list
             ["apps.new"]                  = "Nová aplikace",
@@ -661,6 +665,8 @@ public static class UiStrings
 
             // Navigation user info
             ["nav.signedInAs"]            = "Angemeldet als",
+            ["nav.user"]                  = "Benutzer",
+            ["nav.role"]                  = "Rolle",
 
             // Apps list
             ["apps.new"]                  = "Neue Anwendung",
