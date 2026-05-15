@@ -5,8 +5,10 @@ namespace UpdateHub.Application.Services;
 /// <summary>
 /// High-level notification helper — wraps IEmailService with domain-specific messages.
 /// </summary>
-public class EmailNotificationService(IEmailService email)
+public class EmailNotificationService(IEmailService email, BaseUrlAccessor? baseUrl = null)
 {
+    private string? baseUrlForLinks => baseUrl?.BaseUrl;
+
     public Task SendReleasePublishedAsync(string appSlug, string version, string channel) =>
         email.SendAsync(
             $"[UpdateHub] New release: {appSlug} v{version} ({channel})",
@@ -98,6 +100,30 @@ public class EmailNotificationService(IEmailService email)
                 If you did not expect this, contact the administrator.
                 """,
                 toOverride: userEmail);
+
+    public Task SendPasswordResetLinkAsync(string? userEmail, string username, string token)
+    {
+        if (string.IsNullOrWhiteSpace(userEmail)) return Task.CompletedTask;
+        var link = $"{baseUrlForLinks ?? "(server URL)"}/account/reset?token={token}";
+        return email.SendAsync(
+            "[UpdateHub] Password reset request",
+            $"""
+            Hello {username},
+
+            We received a request to reset your UpdateHub password.
+
+            If this was you, open the link below within 30 minutes and
+            choose a new password:
+
+            {link}
+
+            If you did NOT request this, you can safely ignore this email —
+            no change has been made to your account.
+
+            Time: {DateTime.UtcNow:u}
+            """,
+            toOverride: userEmail);
+    }
 
     public Task SendPasswordResetToUserAsync(string? userEmail, string username) =>
         string.IsNullOrWhiteSpace(userEmail)

@@ -8,7 +8,10 @@
 
 <div class="page-header">
     <h1>Audit Log</h1>
-    <button class="btn-ghost btn-sm" @onclick="Load">Refresh</button>
+    <div class="header-actions">
+        <a class="btn-ghost btn-sm" href="/audit/export.csv" download>CSV</a>
+        <button class="btn-ghost btn-sm" @onclick="Load">Refresh</button>
+    </div>
 </div>
 
 @if (entries is null)

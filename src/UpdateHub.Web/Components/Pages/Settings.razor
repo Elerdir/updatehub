@@ -52,6 +52,31 @@
     @if (_rotateMsg is not null) { <div class="info" style="margin-top:8px;">@_rotateMsg</div> }
 </div>
 
+@* ── Webhook signing ─────────────────────────────────────────────────────── *@
+<div class="card" style="margin-bottom:24px;">
+    <h3>@L["settings.webhook"]</h3>
+    <p style="color:var(--muted);margin-bottom:16px;font-size:13px;">@L["settings.webhook.hint"]</p>
+    <div class="token-display">
+        <div class="token-box" style="@(_webhookSecret is null ? "color:var(--muted);" : "")">
+            @(_webhookSecret ?? _webhookMask)
+        </div>
+        @if (_webhookSecret is null && _hasWebhookSecret)
+        {
+            <button class="btn-ghost btn-sm" @onclick="RevealWebhook">@L["settings.reveal"]</button>
+        }
+    </div>
+    <div style="margin-top:12px;display:flex;gap:8px;">
+        <button class="btn-primary btn-sm" @onclick="RotateWebhook">
+            @(_hasWebhookSecret ? L["settings.webhook.rotate"] : L["settings.webhook.generate"])
+        </button>
+        @if (_hasWebhookSecret)
+        {
+            <button class="btn-danger-sm" @onclick="ClearWebhook">@L["common.delete"]</button>
+        }
+    </div>
+    @if (_webhookMsg is not null) { <div class="info" style="margin-top:8px;">@_webhookMsg</div> }
+</div>
+
 @* ── SMTP — editable runtime config ──────────────────────────────────────── *@
 <div class="card">
     <h3>@L["settings.smtp"]</h3>
@@ -137,9 +162,15 @@
     private string?       _smtpErr;
     private bool          _testInFlight;
 
+    private string? _webhookSecret;
+    private bool    _hasWebhookSecret;
+    private string  _webhookMask = "••••••••••••••••••••••••••••••••";
+    private string? _webhookMsg;
+
     protected override async Task OnInitializedAsync()
     {
         var cfg = await SettingsSvc.GetSmtpConfigAsync();
+        _hasWebhookSecret = !string.IsNullOrEmpty(await SettingsSvc.GetWebhookSecretAsync());
         _form = new SmtpFormModel
         {
             Host     = cfg.Host,
@@ -182,6 +213,26 @@
             _smtpMsg       = L["settings.smtp.saved"];
         }
         catch (Exception ex) { _smtpErr = ex.Message; }
+    }
+
+    private async Task RevealWebhook()
+    {
+        _webhookSecret = await SettingsSvc.GetWebhookSecretAsync();
+    }
+
+    private async Task RotateWebhook()
+    {
+        _webhookSecret = await SettingsSvc.RotateWebhookSecretAsync();
+        _hasWebhookSecret = true;
+        _webhookMsg = L["settings.webhook.rotated"];
+    }
+
+    private async Task ClearWebhook()
+    {
+        await SettingsSvc.ClearWebhookSecretAsync();
+        _webhookSecret = null;
+        _hasWebhookSecret = false;
+        _webhookMsg = L["settings.webhook.cleared"];
     }
 
     private async Task SendTestEmail()

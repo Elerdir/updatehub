@@ -4,17 +4,29 @@
 
 <nav class="sidebar">
     <div class="brand">UpdateHub</div>
+
+    @* Global search — submits a GET to /apps?q=… (no Blazor interactivity needed) *@
+    <form method="get" action="/apps" style="padding: 0 20px 16px;">
+        <input type="text" name="q" class="nav-search" placeholder="@L["nav.search"]"
+               autocomplete="off" />
+    </form>
+
     <ul>
         <li><NavLink href="/"         Match="NavLinkMatch.All">@L["nav.dashboard"]</NavLink></li>
         <li><NavLink href="/apps">@L["nav.applications"]</NavLink></li>
+        <AuthorizeView Roles="Admin,Manager">
+            <li><NavLink href="/analytics">@L["nav.analytics"]</NavLink></li>
+        </AuthorizeView>
         <AuthorizeView Roles="Admin">
             <li><NavLink href="/users">@L["nav.users"]</NavLink></li>
+            <li><NavLink href="/storage">@L["nav.storage"]</NavLink></li>
             <li><NavLink href="/settings">@L["nav.settings"]</NavLink></li>
         </AuthorizeView>
         <li><NavLink href="/security">@L["nav.security"]</NavLink></li>
         <li><NavLink href="/audit">@L["nav.audit"]</NavLink></li>
         <li><NavLink href="/account">@L["nav.account"]</NavLink></li>
     </ul>
+
     <div class="sidebar-footer">
         <AuthorizeView>
             <Authorized>

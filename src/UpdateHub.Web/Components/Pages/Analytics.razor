@@ -1,0 +1,135 @@
+@page "/analytics"
+@attribute [Authorize(Roles = "Admin,Manager")]
+@rendermode InteractiveServer
+@inject IDownloadEventRepository Downloads
+@inject UpdateHub.Web.Localization.Translator L
+
+<PageTitle>@L["analytics.title"] — UpdateHub</PageTitle>
+
+<div class="page-header">
+    <h1>@L["analytics.title"]</h1>
+    <div class="header-actions">
+        <select class="pref-select" style="width:180px" @bind="_days" @bind:after="Reload">
+            <option value="7">@L["analytics.window.7"]</option>
+            <option value="30">@L["analytics.window.30"]</option>
+            <option value="90">@L["analytics.window.90"]</option>
+        </select>
+    </div>
+</div>
+
+@if (_loading)
+{
+    <p class="loading">@L["common.loading"]</p>
+}
+else
+{
+    <div class="stats" style="margin-bottom:24px;">
+        <div class="stat-card">
+            <span class="stat-value">@_total</span>
+            <span class="stat-label">@L["analytics.totalDownloads"]</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-value">@_perDay.Count</span>
+            <span class="stat-label">@L["analytics.activeDays"]</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-value">@(_perDay.Count == 0 ? 0 : _total / _perDay.Count)</span>
+            <span class="stat-label">@L["analytics.avgPerDay"]</span>
+        </div>
+    </div>
+
+    @* Bar chart: downloads per day *@
+    @if (_perDay.Any())
+    {
+        <div class="card">
+            <h3>@L["analytics.perDay"]</h3>
+            <div class="chart-bars">
+                @foreach (var (day, count) in _perDay)
+                {
+                    var height = _maxDay == 0 ? 0 : (int)(count * 100.0 / _maxDay);
+                    <div class="chart-bar-col" title="@day.ToString("yyyy-MM-dd"): @count">
+                        <div class="chart-bar" style="height: @(height)%"></div>
+                        <div class="chart-bar-label">@day.ToString("d.M")</div>
+                    </div>
+                }
+            </div>
+        </div>
+    }
+
+    <div class="form-row" style="grid-template-columns: 1fr 1fr; gap: 16px;">
+        <div class="card">
+            <h3>@L["analytics.byPlatform"]</h3>
+            @if (!_byPlatform.Any())
+            {
+                <p class="muted">@L["analytics.noData"]</p>
+            }
+            else
+            {
+                <table class="table">
+                    <tbody>
+                        @foreach (var (platform, count) in _byPlatform)
+                        {
+                            <tr>
+                                <td>@(string.IsNullOrEmpty(platform) ? "—" : platform)</td>
+                                <td style="text-align:right;font-weight:600;">@count</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        </div>
+
+        <div class="card">
+            <h3>@L["analytics.topVersions"]</h3>
+            @if (!_topVersions.Any())
+            {
+                <p class="muted">@L["analytics.noData"]</p>
+            }
+            else
+            {
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>@L["dashboard.col.name"]</th>
+                            <th>@L["releases.version"]</th>
+                            <th style="text-align:right;">@L["releases.col.downloads"]</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var (slug, version, count) in _topVersions)
+                        {
+                            <tr>
+                                <td><code>@slug</code></td>
+                                <td>@version</td>
+                                <td style="text-align:right;font-weight:600;">@count</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        </div>
+    </div>
+}
+
+@code {
+    private bool _loading = true;
+    private int  _days    = 30;
+    private int  _total;
+    private int  _maxDay;
+    private List<(DateTime Day, int Count)>                       _perDay      = [];
+    private List<(string Platform, int Count)>                    _byPlatform  = [];
+    private List<(string AppSlug, string Version, int Count)>     _topVersions = [];
+
+    protected override async Task OnInitializedAsync() => await Reload();
+
+    private async Task Reload()
+    {
+        _loading = true;
+        _perDay      = await Downloads.CountByDayAsync(_days);
+        _byPlatform  = await Downloads.CountByPlatformAsync(_days);
+        _topVersions = await Downloads.TopVersionsAsync(_days, 10);
+        _total  = _perDay.Sum(x => x.Count);
+        _maxDay = _perDay.Count == 0 ? 0 : _perDay.Max(x => x.Count);
+        _loading = false;
+    }
+}

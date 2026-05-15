@@ -13,20 +13,44 @@ public static class CiEndpoints
             HttpRequest request,
             IAppRepository appRepo,
             SettingsService settings,
+            UserService userSvc,
             AdminService admin,
             IConfiguration config) =>
         {
             // Single lookup — used for both token resolution and the upload itself
             var appEntity = await appRepo.GetBySlugAsync(appSlug);
 
-            // Per-app token takes priority; fall back to global token
-            var appToken    = appEntity?.CiToken;
-            var dbToken     = await settings.GetCiTokenAsync();
-            var globalToken = string.IsNullOrWhiteSpace(dbToken) ? config["UpdateHub:CiToken"] : dbToken;
-            var expected    = string.IsNullOrWhiteSpace(appToken) ? globalToken : appToken;
+            var presented = request.Headers["X-UpdateHub-Token"].ToString();
 
-            if (string.IsNullOrEmpty(expected) || request.Headers["X-UpdateHub-Token"] != expected)
-                return Results.Unauthorized();
+            // Bearer header carries a personal access token (user-scoped)
+            var bearer = request.Headers.Authorization.ToString();
+            if (string.IsNullOrEmpty(presented) && bearer.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+                presented = bearer["Bearer ".Length..].Trim();
+
+            var authorized = false;
+
+            // Try matching against the personal access tokens table first
+            if (!string.IsNullOrEmpty(presented))
+            {
+                var owner = await userSvc.VerifyPersonalAccessTokenAsync(presented);
+                if (owner is not null && (owner.Role == UpdateHub.Domain.Enums.UserRole.Admin
+                                       || owner.Role == UpdateHub.Domain.Enums.UserRole.Manager))
+                    authorized = true;
+            }
+
+            if (!authorized)
+            {
+                // Fall back to per-app / global CI token (legacy shared-secret)
+                var appToken    = appEntity?.CiToken;
+                var dbToken     = await settings.GetCiTokenAsync();
+                var globalToken = string.IsNullOrWhiteSpace(dbToken) ? config["UpdateHub:CiToken"] : dbToken;
+                var expected    = string.IsNullOrWhiteSpace(appToken) ? globalToken : appToken;
+
+                if (!string.IsNullOrEmpty(expected) && presented == expected)
+                    authorized = true;
+            }
+
+            if (!authorized) return Results.Unauthorized();
 
             if (!request.HasFormContentType)
                 return Results.BadRequest(new { error = "multipart/form-data required" });

@@ -2,6 +2,7 @@
 using System;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
+using Microsoft.EntityFrameworkCore.Migrations;
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using UpdateHub.Infrastructure.Persistence;
 
@@ -10,9 +11,11 @@ using UpdateHub.Infrastructure.Persistence;
 namespace UpdateHub.Infrastructure.Migrations
 {
     [DbContext(typeof(AppDbContext))]
-    partial class AppDbContextModelSnapshot : ModelSnapshot
+    [Migration("20260515190838_AddPasswordResetTokens")]
+    partial class AddPasswordResetTokens
     {
-        protected override void BuildModel(ModelBuilder modelBuilder)
+        /// <inheritdoc />
+        protected override void BuildTargetModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "9.0.5");
@@ -144,52 +147,6 @@ namespace UpdateHub.Infrastructure.Migrations
                     b.ToTable("AuditEntries");
                 });
 
-            modelBuilder.Entity("UpdateHub.Domain.Entities.DownloadEvent", b =>
-                {
-                    b.Property<long>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
-
-                    b.Property<Guid>("AppId")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("AppSlug")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Architecture")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<Guid>("ArtifactId")
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime>("At")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("IpHash")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Platform")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("UserAgent")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Version")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("ArtifactId");
-
-                    b.HasIndex("At");
-
-                    b.ToTable("DownloadEvents");
-                });
-
             modelBuilder.Entity("UpdateHub.Domain.Entities.LoginAttempt", b =>
                 {
                     b.Property<string>("IpAddress")
@@ -252,49 +209,6 @@ namespace UpdateHub.Infrastructure.Migrations
                         .IsUnique();
 
                     b.ToTable("PasswordResetTokens");
-                });
-
-            modelBuilder.Entity("UpdateHub.Domain.Entities.PersonalAccessToken", b =>
-                {
-                    b.Property<Guid>("Id")
-                        .ValueGeneratedOnAdd()
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime>("CreatedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime?>("ExpiresAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime?>("LastUsedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Name")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("Prefix")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<DateTime?>("RevokedAt")
-                        .HasColumnType("TEXT");
-
-                    b.Property<string>("TokenHash")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
-                    b.Property<Guid>("UserId")
-                        .HasColumnType("TEXT");
-
-                    b.HasKey("Id");
-
-                    b.HasIndex("TokenHash")
-                        .IsUnique();
-
-                    b.HasIndex("UserId");
-
-                    b.ToTable("PersonalAccessTokens");
                 });
 
             modelBuilder.Entity("UpdateHub.Domain.Entities.Release", b =>
@@ -399,28 +313,6 @@ namespace UpdateHub.Infrastructure.Migrations
                     b.Navigation("Release");
                 });
 
-            modelBuilder.Entity("UpdateHub.Domain.Entities.DownloadEvent", b =>
-                {
-                    b.HasOne("UpdateHub.Domain.Entities.Artifact", "Artifact")
-                        .WithMany()
-                        .HasForeignKey("ArtifactId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("Artifact");
-                });
-
-            modelBuilder.Entity("UpdateHub.Domain.Entities.PersonalAccessToken", b =>
-                {
-                    b.HasOne("UpdateHub.Domain.Entities.User", "User")
-                        .WithMany("Tokens")
-                        .HasForeignKey("UserId")
-                        .OnDelete(DeleteBehavior.Cascade)
-                        .IsRequired();
-
-                    b.Navigation("User");
-                });
-
             modelBuilder.Entity("UpdateHub.Domain.Entities.Release", b =>
                 {
                     b.HasOne("UpdateHub.Domain.Entities.App", "App")
@@ -440,11 +332,6 @@ namespace UpdateHub.Infrastructure.Migrations
             modelBuilder.Entity("UpdateHub.Domain.Entities.Release", b =>
                 {
                     b.Navigation("Artifacts");
-                });
-
-            modelBuilder.Entity("UpdateHub.Domain.Entities.User", b =>
-                {
-                    b.Navigation("Tokens");
                 });
 #pragma warning restore 612, 618
         }

@@ -216,6 +216,53 @@ public class AdminService(
             details: a.FileName);
     }
 
+    public async Task<List<(string Slug, string Name, long Bytes, int Artifacts)>> GetStoragePerAppAsync()
+    {
+        var apps = await appRepo.GetAllWithReleasesAsync();
+        return apps.Select(a =>
+        {
+            var artifacts = a.Releases.SelectMany(r => r.Artifacts).ToList();
+            var bytes = artifacts.Sum(x => x.FileSizeBytes);
+            return (a.Slug, a.Name, bytes, artifacts.Count);
+        }).OrderByDescending(x => x.bytes).ToList();
+    }
+
+    /// <summary>
+    /// Deletes every artifact attached to releases archived more than
+    /// <paramref name="olderThanDays"/> days ago. Releases themselves are
+    /// preserved (only their files go) so the audit / metadata stays intact.
+    /// Returns count + bytes freed.
+    /// </summary>
+    public async Task<(int artifactsRemoved, long bytesFreed)> CleanupArchivedAsync(int olderThanDays)
+    {
+        RoleGuard.Require(currentUser, Admin);
+        var cutoff = DateTime.UtcNow.AddDays(-olderThanDays);
+        var apps   = await appRepo.GetAllWithReleasesAsync();
+
+        var stale = apps.SelectMany(a => a.Releases)
+            .Where(r => r.Status == ReleaseStatus.Archived
+                     && (r.PublishedAt ?? r.CreatedAt) < cutoff)
+            .SelectMany(r => r.Artifacts)
+            .ToList();
+
+        long freed = 0;
+        foreach (var a in stale)
+        {
+            try { storage.Delete(a.StoredPath); } catch { /* best-effort */ }
+            await artifactRepo.DeleteAsync(a);
+            freed += a.FileSizeBytes;
+        }
+
+        if (stale.Count > 0)
+        {
+            await audit.LogAsync("CleanupArchived",
+                entityType: "Storage",
+                details: $"{stale.Count} artifacts / {freed} bytes (older than {olderThanDays}d)");
+        }
+
+        return (stale.Count, freed);
+    }
+
     public async Task<(int apps, int published, long downloads)> GetStatsAsync()
     {
         var all       = await appRepo.GetAllWithReleasesAsync();

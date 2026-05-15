@@ -40,9 +40,16 @@ public class UpdateResolverService(
 
         Artifact? artifact = null;
         if (hasUpdate && platform is not null)
-            artifact = release.Artifacts.FirstOrDefault(a =>
-                a.Platform.Equals(platform, StringComparison.OrdinalIgnoreCase) &&
-                (arch is null || a.Architecture.Equals(arch, StringComparison.OrdinalIgnoreCase)));
+        {
+            // If the publisher uploaded multiple files for the same platform/arch
+            // (e.g. setup.exe + portable.zip), the most recently uploaded one is
+            // treated as authoritative for the update endpoint.
+            artifact = release.Artifacts
+                .Where(a => a.Platform.Equals(platform, StringComparison.OrdinalIgnoreCase)
+                         && (arch is null || a.Architecture.Equals(arch, StringComparison.OrdinalIgnoreCase)))
+                .OrderByDescending(a => a.CreatedAt)
+                .FirstOrDefault();
+        }
 
         return new UpdateCheckResult(
             hasUpdate,

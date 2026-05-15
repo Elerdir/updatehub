@@ -11,7 +11,10 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<AppSetting>   Settings      => Set<AppSetting>();
     public DbSet<LoginAttempt> LoginAttempts => Set<LoginAttempt>();
     public DbSet<AuditEntry>   AuditEntries  => Set<AuditEntry>();
-    public DbSet<User>         Users         => Set<User>();
+    public DbSet<User>                Users                => Set<User>();
+    public DbSet<PasswordResetToken>  PasswordResetTokens  => Set<PasswordResetToken>();
+    public DbSet<DownloadEvent>       DownloadEvents       => Set<DownloadEvent>();
+    public DbSet<PersonalAccessToken> PersonalAccessTokens => Set<PersonalAccessToken>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -26,6 +29,25 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
 
         modelBuilder.Entity<User>()
             .HasIndex(u => u.Username).IsUnique();
+
+        modelBuilder.Entity<PasswordResetToken>()
+            .HasIndex(t => t.TokenHash).IsUnique();
+
+        modelBuilder.Entity<DownloadEvent>()
+            .HasIndex(e => e.At);
+        modelBuilder.Entity<DownloadEvent>()
+            .HasOne(e => e.Artifact)
+            .WithMany()
+            .HasForeignKey(e => e.ArtifactId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<PersonalAccessToken>()
+            .HasIndex(t => t.TokenHash).IsUnique();
+        modelBuilder.Entity<PersonalAccessToken>()
+            .HasOne(t => t.User)
+            .WithMany(u => u.Tokens)
+            .HasForeignKey(t => t.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
 
         modelBuilder.Entity<Release>()
             .HasOne(r => r.App)

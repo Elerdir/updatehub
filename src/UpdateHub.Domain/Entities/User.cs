@@ -52,4 +52,6 @@ public class User
 
     /// <summary>Audit trail — which admin created this account (null for the bootstrap admin).</summary>
     public Guid? CreatedById { get; set; }
+
+    public List<PersonalAccessToken> Tokens { get; set; } = [];
 }

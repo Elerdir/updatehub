@@ -41,6 +41,9 @@ public static class DependencyInjection
         services.AddScoped<ILoginAttemptRepository, LoginAttemptRepository>();
         services.AddScoped<IAuditRepository,        AuditRepository>();
         services.AddScoped<IUserRepository,         UserRepository>();
+        services.AddScoped<IPasswordResetTokenRepository, PasswordResetTokenRepository>();
+        services.AddScoped<IDownloadEventRepository, DownloadEventRepository>();
+        services.AddScoped<IPersonalAccessTokenRepository, PersonalAccessTokenRepository>();
 
         services.AddSingleton<IArtifactStorage>(_ => new LocalArtifactStorage(storagePath));
 
@@ -62,6 +65,9 @@ public static class DependencyInjection
         services.AddScoped<UpdateResolverService>(sp => new UpdateResolverService(
             sp.GetRequiredService<IReleaseRepository>(),
             baseUrl));
+
+        // BaseUrl singleton so notification emails can include absolute links
+        services.AddSingleton(new BaseUrlAccessor(baseUrl));
 
         return services;
     }

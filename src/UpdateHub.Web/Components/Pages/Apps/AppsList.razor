@@ -81,6 +81,9 @@ else
 }
 
 @code {
+    [SupplyParameterFromQuery(Name = "q")]
+    private string? Query { get; set; }
+
     private List<App>? apps;
     private bool showForm;
     private string newSlug = "";
@@ -88,7 +91,17 @@ else
     private string? newDescription;
     private string? formError;
 
-    protected override async Task OnInitializedAsync() => apps = await AdminSvc.GetAppsAsync();
+    protected override async Task OnParametersSetAsync()
+    {
+        var all = await AdminSvc.GetAppsAsync();
+        apps = string.IsNullOrWhiteSpace(Query)
+            ? all
+            : all.Where(a =>
+                a.Name.Contains(Query, StringComparison.OrdinalIgnoreCase) ||
+                a.Slug.Contains(Query, StringComparison.OrdinalIgnoreCase) ||
+                (a.Description?.Contains(Query, StringComparison.OrdinalIgnoreCase) ?? false))
+              .ToList();
+    }
 
     private async Task CreateApp()
     {

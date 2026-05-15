@@ -17,6 +17,8 @@ public class SettingsService(ISettingsRepository repo, ISecretProtector protecto
     private const string SmtpPasswordKey   = "Smtp:Password";
     private const string SmtpToKey         = "Smtp:To";
 
+    private const string WebhookSecretKey  = "Webhook:Secret";
+
     // ── CI Token ──────────────────────────────────────────────────────────────
 
     public Task<string?> GetCiTokenAsync() => repo.GetAsync(CiTokenKey);
@@ -119,6 +121,26 @@ public class SettingsService(ISettingsRepository repo, ISecretProtector protecto
 
     public async Task<bool> HasStoredSmtpPasswordAsync() =>
         !string.IsNullOrEmpty(await repo.GetAsync(SmtpPasswordKey));
+
+    // ── Webhook signing secret ────────────────────────────────────────────────
+
+    public async Task<string?> GetWebhookSecretAsync()
+    {
+        var enc = await repo.GetAsync(WebhookSecretKey);
+        if (string.IsNullOrEmpty(enc)) return null;
+        try   { return protector.Unprotect(enc); }
+        catch { return enc; }
+    }
+
+    public async Task<string> RotateWebhookSecretAsync()
+    {
+        var secret = GenerateToken();
+        await repo.SetAsync(WebhookSecretKey, protector.Protect(secret));
+        return secret;
+    }
+
+    public async Task ClearWebhookSecretAsync() =>
+        await repo.SetAsync(WebhookSecretKey, "");
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 

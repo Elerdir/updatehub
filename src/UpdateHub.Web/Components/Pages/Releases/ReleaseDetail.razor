@@ -80,7 +80,17 @@ else
         </div>
         <div class="field">
             <label>@L["releases.file"]</label>
-            <InputFile OnChange="FileSelected" />
+            <div class="dropzone">
+                <div class="dropzone-icon">⬆</div>
+                <div>@L["releases.dropHint"]</div>
+                @if (selectedFile is not null)
+                {
+                    <div style="margin-top:8px;font-size:13px;color:var(--text);">
+                        @selectedFile.Name (@FormatSize(selectedFile.Size))
+                    </div>
+                }
+                <InputFile OnChange="FileSelected" />
+            </div>
         </div>
         @if (uploadError is not null) { <div class="error">@uploadError</div> }
         @if (uploading) { <div class="info">@L["releases.uploading"]</div> }

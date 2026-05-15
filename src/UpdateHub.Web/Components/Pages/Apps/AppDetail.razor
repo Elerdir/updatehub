@@ -2,6 +2,7 @@
 @attribute [Authorize]
 @rendermode InteractiveServer
 @inject AdminService AdminSvc
+@inject AuditService AuditSvc
 @inject NavigationManager Nav
 @inject IConfiguration Config
 @inject IJSRuntime JS
@@ -61,6 +62,18 @@ else
                 <span style="font-size:12px;color:var(--muted);margin-left:8px;">
                     @(app.CiToken is not null ? L["apps.appToken.custom"] : L["apps.appToken.global"])
                 </span>
+                @if (lastRotatedAt is { } rotated)
+                {
+                    var age = DateTime.UtcNow - rotated;
+                    var ageStr = age.TotalDays < 1
+                        ? L["apps.appToken.rotated.today"]
+                        : $"{(int)age.TotalDays} {L["storage.days"]}";
+                    var warn = age.TotalDays > 90;
+                    <span style="font-size:11px;margin-left:8px;color:@(warn ? "var(--warning)" : "var(--muted)");">
+                        @L["apps.appToken.rotated"]: @ageStr
+                        @if (warn) { <span> ⚠</span> }
+                    </span>
+                }
             </div>
             <div style="display:flex;gap:8px;">
                 @if (appTokenRevealed && app.CiToken is not null)
@@ -213,13 +226,25 @@ else
     private bool confirmDelete;
     private bool copied;
     private bool appTokenRevealed;
+    private DateTime? lastRotatedAt;
 
     protected override async Task OnParametersSetAsync() => await Load();
 
     private async Task Load()
     {
         app = await AdminSvc.GetAppAsync(Slug);
-        if (app is not null) { editName = app.Name; editDescription = app.Description; }
+        if (app is not null)
+        {
+            editName = app.Name;
+            editDescription = app.Description;
+            // Derive last-rotated time from audit log so we don't need a new
+            // DB column. Looks back at the most recent few hundred entries.
+            var entries = await AuditSvc.GetRecentAsync(500);
+            lastRotatedAt = entries
+                .Where(e => e.Action == "RotateAppCiToken" && e.EntityId == app.Id.ToString())
+                .Select(e => (DateTime?)e.OccurredAt)
+                .FirstOrDefault();
+        }
     }
 
     private async Task SaveEdit()

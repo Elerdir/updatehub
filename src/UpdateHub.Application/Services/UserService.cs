@@ -9,12 +9,16 @@ namespace UpdateHub.Application.Services;
 
 public class UserService(
     IUserRepository    users,
+    IPasswordResetTokenRepository resetTokens,
+    IPersonalAccessTokenRepository pats,
     ISecretProtector   protector,
     AuditService       audit,
     INotificationQueue notifications,
     ICurrentUser       currentUser)
 {
     private const string Admin = "Admin";
+
+    private static readonly TimeSpan ResetTokenLifetime = TimeSpan.FromMinutes(30);
     public const int MinPasswordLength = 8;
 
     public Task<List<User>> GetAllAsync()           => users.GetAllAsync();
@@ -216,6 +220,101 @@ public class UserService(
             details: $"{user.Username} → {role}");
     }
 
+    // ── Forgot-password flow (unauthenticated) ────────────────────────────
+
+    /// <summary>
+    /// Looks up the user by username OR email and (if found) creates a single-use
+    /// reset token. The plaintext token is returned to the caller so it can be
+    /// embedded in an email link. Returns null when no matching user exists —
+    /// callers must NOT reveal that to the requester (timing-safe-ish: we
+    /// always do the same amount of work).
+    /// </summary>
+    public async Task<string?> InitiatePasswordResetAsync(string usernameOrEmail)
+    {
+        var key = usernameOrEmail.Trim();
+        if (string.IsNullOrEmpty(key)) return null;
+
+        // Try username first, then email
+        var user = await users.GetByUsernameAsync(key);
+        if (user is null)
+        {
+            var all = await users.GetAllAsync();
+            user = all.FirstOrDefault(u =>
+                !string.IsNullOrEmpty(u.Email) &&
+                string.Equals(u.Email, key, StringComparison.OrdinalIgnoreCase));
+        }
+        if (user is null || !user.IsActive) return null;
+        if (string.IsNullOrWhiteSpace(user.Email)) return null;
+
+        // Invalidate any other open tokens for this user — only the freshest one is usable
+        await resetTokens.InvalidateAllForUserAsync(user.Id);
+
+        var rawToken = GenerateOpaqueToken();
+        var hash     = HashToken(rawToken);
+
+        await resetTokens.CreateAsync(new Domain.Entities.PasswordResetToken
+        {
+            UserId    = user.Id,
+            TokenHash = hash,
+            ExpiresAt = DateTime.UtcNow.Add(ResetTokenLifetime),
+        });
+
+        await audit.LogAsync("RequestPasswordReset", actor: user.Username,
+            entityType: "User", entityId: user.Id.ToString());
+
+        var capturedEmail    = user.Email;
+        var capturedUsername = user.Username;
+        var token            = rawToken;
+        notifications.Enqueue(async (sp, _) =>
+        {
+            var em = sp.GetRequiredService<EmailNotificationService>();
+            await em.SendPasswordResetLinkAsync(capturedEmail, capturedUsername, token);
+        });
+
+        return rawToken;
+    }
+
+    /// <summary>
+    /// Consumes a reset token: verifies it is unused, not expired, and matches
+    /// a live user, then sets the new password and marks the token used.
+    /// SecurityStamp rotation invalidates any existing sessions for the user.
+    /// </summary>
+    public async Task ConsumePasswordResetAsync(string rawToken, string newPassword)
+    {
+        if (newPassword.Length < MinPasswordLength)
+            throw new ArgumentException($"Password must be at least {MinPasswordLength} characters.");
+
+        var hash  = HashToken(rawToken);
+        var token = await resetTokens.GetByHashAsync(hash)
+            ?? throw new InvalidOperationException("Invalid or expired reset link.");
+        if (token.UsedAt is not null || token.ExpiresAt < DateTime.UtcNow)
+            throw new InvalidOperationException("Invalid or expired reset link.");
+
+        var user = await users.GetByIdAsync(token.UserId)
+            ?? throw new InvalidOperationException("Invalid or expired reset link.");
+        if (!user.IsActive)
+            throw new InvalidOperationException("Account is disabled.");
+
+        user.PasswordHash       = BCrypt.Net.BCrypt.HashPassword(newPassword, workFactor: 12);
+        user.MustChangePassword = false;
+        user.SecurityStamp      = Guid.NewGuid().ToString("N");
+        await users.UpdateAsync(user);
+
+        token.UsedAt = DateTime.UtcNow;
+        await resetTokens.UpdateAsync(token);
+
+        await audit.LogAsync("CompletePasswordReset", actor: user.Username,
+            entityType: "User", entityId: user.Id.ToString());
+    }
+
+    private static string GenerateOpaqueToken(int bytes = 32) =>
+        Convert.ToBase64String(RandomNumberGenerator.GetBytes(bytes))
+            .Replace('+', '-').Replace('/', '_').TrimEnd('=');
+
+    private static string HashToken(string raw) =>
+        Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
+            System.Text.Encoding.UTF8.GetBytes(raw))).ToLowerInvariant();
+
     // ── 2FA (per-user) ─────────────────────────────────────────────────────
 
     public async Task<string?> GetTotpSecretAsync(Guid userId)
@@ -258,6 +357,106 @@ public class UserService(
         await users.UpdateAsync(user);
         await audit.LogAsync("DisableTotp", actor: user.Username,
             entityType: "User", entityId: userId.ToString());
+    }
+
+    // ── Personal access tokens (per-user bearer tokens) ───────────────────
+
+    public Task<List<Domain.Entities.PersonalAccessToken>> GetTokensAsync(Guid userId)
+    {
+        RequireSelf(userId);
+        return pats.GetForUserAsync(userId);
+    }
+
+    public async Task<string> CreatePersonalAccessTokenAsync(Guid userId, string name, int? expiresInDays)
+    {
+        RequireSelf(userId);
+        if (string.IsNullOrWhiteSpace(name))
+            throw new ArgumentException("Token name is required.");
+
+        var raw = GenerateOpaqueToken(40);
+        var token = new Domain.Entities.PersonalAccessToken
+        {
+            UserId    = userId,
+            Name      = name.Trim(),
+            TokenHash = HashToken(raw),
+            Prefix    = raw[..8],
+            ExpiresAt = expiresInDays is int d && d > 0 ? DateTime.UtcNow.AddDays(d) : null,
+        };
+        await pats.CreateAsync(token);
+
+        var owner = await users.GetByIdAsync(userId);
+        await audit.LogAsync("CreateApiToken", actor: owner?.Username ?? "?",
+            entityType: "PersonalAccessToken", entityId: token.Id.ToString(),
+            details: name);
+
+        return raw;
+    }
+
+    public async Task RevokeTokenAsync(Guid userId, Guid tokenId)
+    {
+        RequireSelf(userId);
+        var token = (await pats.GetForUserAsync(userId)).FirstOrDefault(t => t.Id == tokenId)
+            ?? throw new InvalidOperationException("Token not found.");
+        if (token.RevokedAt is not null) return;
+        token.RevokedAt = DateTime.UtcNow;
+        await pats.UpdateAsync(token);
+
+        var owner = await users.GetByIdAsync(userId);
+        await audit.LogAsync("RevokeApiToken", actor: owner?.Username ?? "?",
+            entityType: "PersonalAccessToken", entityId: token.Id.ToString(),
+            details: token.Name);
+    }
+
+    /// <summary>
+    /// Verifies a raw Bearer token. Returns the owning User on success (and
+    /// updates LastUsedAt). Null when the token is unknown, revoked, expired,
+    /// or its owner is disabled.
+    /// </summary>
+    public async Task<User?> VerifyPersonalAccessTokenAsync(string rawToken)
+    {
+        var hash  = HashToken(rawToken);
+        var token = await pats.GetByHashAsync(hash);
+        if (token is null) return null;
+        if (token.RevokedAt is not null) return null;
+        if (token.ExpiresAt is { } exp && exp < DateTime.UtcNow) return null;
+        if (token.User is null || !token.User.IsActive) return null;
+
+        token.LastUsedAt = DateTime.UtcNow;
+        await pats.UpdateAsync(token);
+        return token.User;
+    }
+
+    // ── Session management ────────────────────────────────────────────────
+
+    /// <summary>
+    /// Rotates the user's SecurityStamp — any existing auth cookies for this
+    /// user become invalid on their next request (the middleware sees the
+    /// mismatch and signs them out). Used for "log out of all other devices".
+    /// </summary>
+    public async Task RevokeAllSessionsAsync(Guid userId)
+    {
+        RequireSelf(userId);
+        var user = await users.GetByIdAsync(userId)
+            ?? throw new InvalidOperationException("User not found.");
+        user.SecurityStamp = Guid.NewGuid().ToString("N");
+        await users.UpdateAsync(user);
+        await audit.LogAsync("RevokeSessions", actor: user.Username,
+            entityType: "User", entityId: userId.ToString());
+    }
+
+    // ── Admin: force a user to change password on next login ──────────────
+
+    public async Task SetMustChangePasswordAsync(Guid userId, bool value, string actorName)
+    {
+        RoleGuard.Require(currentUser, Admin);
+        var user = await users.GetByIdAsync(userId)
+            ?? throw new InvalidOperationException("User not found.");
+        if (user.MustChangePassword == value) return;
+        user.MustChangePassword = value;
+        await users.UpdateAsync(user);
+        await audit.LogAsync("SetMustChangePassword", actor: actorName,
+            entityType: "User", entityId: userId.ToString(),
+            details: $"{user.Username} → {value}");
     }
 
     // ── Helpers ────────────────────────────────────────────────────────────

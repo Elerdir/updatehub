@@ -28,6 +28,13 @@
             </div>
             <button type="submit" class="btn-primary btn-block">@L["login.submit"]</button>
         </form>
+        @if (JustReset)
+        {
+            <div class="info" style="margin-top:16px;text-align:center;">@L["login.reset.success"]</div>
+        }
+        <div style="margin-top:16px;text-align:center;">
+            <a href="/account/forgot" style="font-size:13px;color:var(--muted);">@L["login.forgot"]</a>
+        </div>
     </div>
 </div>
 
@@ -35,6 +42,10 @@
     [SupplyParameterFromQuery(Name = "error")]
     private string? ErrorCode { get; set; }
 
+    [SupplyParameterFromQuery(Name = "reset")]
+    private string? ResetCode { get; set; }
+
     private bool HasError    => ErrorCode == "1";
     private bool IsBlocked   => ErrorCode == "blocked";
+    private bool JustReset   => ResetCode == "1";
 }

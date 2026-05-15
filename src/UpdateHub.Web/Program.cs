@@ -192,6 +192,7 @@ app.MapScalarApiReference("/api/docs");
 app.MapPublicEndpoints();
 app.MapCiEndpoints();
 app.MapAuthEndpoints();
+app.MapAdminEndpoints();
 
 // Set the UI language cookie and bounce back to where the user was.
 // GET is fine — switching language is not a security-sensitive action and

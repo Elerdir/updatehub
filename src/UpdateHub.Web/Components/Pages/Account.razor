@@ -55,6 +55,89 @@
     <button class="btn-primary" @onclick="ChangePassword">@L["common.save"]</button>
 </div>
 
+@* ── Personal access tokens ─────────────────────────────────────────────── *@
+<div class="card" style="margin-bottom:24px;">
+    <h3>@L["account.tokens"]</h3>
+    <p style="color:var(--muted);margin-bottom:16px;font-size:13px;">
+        @L["account.tokens.hint"]
+    </p>
+
+    <div class="form-row" style="grid-template-columns: 2fr 1fr auto; align-items: end; gap: 8px;">
+        <div class="field" style="margin-bottom:0;">
+            <label>@L["account.tokens.name"]</label>
+            <input @bind="_newTokenName" placeholder="my-laptop / ci-pipeline" autocomplete="off" />
+        </div>
+        <div class="field" style="margin-bottom:0;">
+            <label>@L["account.tokens.expiry"]</label>
+            <select @bind="_newTokenExpiry">
+                <option value="0">@L["account.tokens.expiry.never"]</option>
+                <option value="30">30 @L["storage.days"]</option>
+                <option value="90">90 @L["storage.days"]</option>
+                <option value="365">365 @L["storage.days"]</option>
+            </select>
+        </div>
+        <button class="btn-primary" @onclick="CreateToken">@L["account.tokens.create"]</button>
+    </div>
+    @if (_newTokenValue is not null)
+    {
+        <div class="info" style="margin-top:12px;">
+            <strong>@L["account.tokens.shown"]:</strong>
+            <code style="margin-left:8px;background:var(--surface2);padding:4px 8px;border-radius:4px;">@_newTokenValue</code>
+        </div>
+    }
+    @if (_tokenError is not null) { <div class="error" style="margin-top:8px;">@_tokenError</div> }
+
+    @if (_tokens is not null && _tokens.Any())
+    {
+        <table class="table" style="margin-top:20px;">
+            <thead>
+                <tr>
+                    <th>@L["common.name"]</th>
+                    <th>@L["account.tokens.prefix"]</th>
+                    <th>@L["users.lastLogin"]</th>
+                    <th>@L["account.tokens.expires"]</th>
+                    <th>@L["users.status"]</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var t in _tokens)
+                {
+                    var revoked = t.RevokedAt is not null;
+                    var expired = t.ExpiresAt is { } e && e < DateTime.UtcNow;
+                    <tr style="@(revoked || expired ? "opacity:0.5;" : "")">
+                        <td><strong>@t.Name</strong></td>
+                        <td><code style="font-size:12px;">@t.Prefix…</code></td>
+                        <td>@(t.LastUsedAt?.ToString("yyyy-MM-dd HH:mm") ?? "—")</td>
+                        <td>@(t.ExpiresAt?.ToString("yyyy-MM-dd") ?? L["account.tokens.expiry.never"])</td>
+                        <td>
+                            @if (revoked) { <span class="badge danger">@L["account.tokens.revoked"]</span> }
+                            else if (expired) { <span class="badge warning">@L["account.tokens.expired"]</span> }
+                            else { <span class="badge published">@L["users.active"]</span> }
+                        </td>
+                        <td>
+                            @if (!revoked && !expired)
+                            {
+                                <button class="btn-danger-sm" @onclick="() => RevokeToken(t.Id)">@L["account.tokens.revoke"]</button>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+</div>
+
+@* ── Active sessions ─────────────────────────────────────────────────────── *@
+<div class="card" style="margin-bottom:24px;">
+    <h3>@L["account.sessions"]</h3>
+    <p style="color:var(--muted);margin-bottom:16px;font-size:13px;">
+        @L["account.sessions.hint"]
+    </p>
+    <button class="btn-danger-outline" @onclick="RevokeSessions">@L["account.sessions.revokeAll"]</button>
+    @if (_sessionMsg is not null) { <div class="info" style="margin-top:8px;">@_sessionMsg</div> }
+</div>
+
 @* ── 2FA ─────────────────────────────────────────────────────────────────── *@
 <div class="card">
     <h3>@L["account.totp"]</h3>
@@ -122,6 +205,13 @@
     private string? _totpError;
     private bool    _disableConfirm;
 
+    private List<UpdateHub.Domain.Entities.PersonalAccessToken>? _tokens;
+    private string?  _newTokenName;
+    private int      _newTokenExpiry;
+    private string?  _newTokenValue;
+    private string?  _tokenError;
+    private string?  _sessionMsg;
+
     protected override async Task OnInitializedAsync()
     {
         var state = await AuthState.GetAuthenticationStateAsync();
@@ -130,6 +220,33 @@
         _username = state.User.Identity?.Name ?? "";
 
         _totpEnabled = await UserSvc.IsTotpEnabledAsync(_userId);
+        _tokens      = await UserSvc.GetTokensAsync(_userId);
+    }
+
+    private async Task CreateToken()
+    {
+        _tokenError   = null;
+        _newTokenValue = null;
+        try
+        {
+            _newTokenValue = await UserSvc.CreatePersonalAccessTokenAsync(
+                _userId, _newTokenName ?? "", _newTokenExpiry > 0 ? _newTokenExpiry : null);
+            _newTokenName = null;
+            _tokens = await UserSvc.GetTokensAsync(_userId);
+        }
+        catch (Exception ex) { _tokenError = ex.Message; }
+    }
+
+    private async Task RevokeToken(Guid tokenId)
+    {
+        await UserSvc.RevokeTokenAsync(_userId, tokenId);
+        _tokens = await UserSvc.GetTokensAsync(_userId);
+    }
+
+    private async Task RevokeSessions()
+    {
+        await UserSvc.RevokeAllSessionsAsync(_userId);
+        _sessionMsg = L["account.sessions.revoked"];
     }
 
     private async Task ChangePassword()

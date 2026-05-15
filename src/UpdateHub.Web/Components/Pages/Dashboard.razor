@@ -2,6 +2,7 @@
 @attribute [Authorize]
 @rendermode InteractiveServer
 @inject AdminService AdminSvc
+@inject AuditService AuditSvc
 @inject UpdateHub.Web.Localization.Translator L
 
 <PageTitle>@L["dashboard.title"] — UpdateHub</PageTitle>
@@ -67,15 +68,49 @@ else if (apps is not null)
     </div>
 }
 
+@if (recentActivity is not null && recentActivity.Count > 0)
+{
+    <div class="section-header">
+        <h2>@L["dashboard.recent"]</h2>
+        <a href="/audit" class="btn-sm btn-outline">@L["dashboard.viewAll"]</a>
+    </div>
+    <table class="table">
+        <tbody>
+            @foreach (var e in recentActivity)
+            {
+                <tr>
+                    <td style="white-space:nowrap;color:var(--muted);font-size:12px;width:120px;">
+                        @FormatDate(e.OccurredAt)
+                    </td>
+                    <td><code>@e.Action</code></td>
+                    <td>@e.Actor</td>
+                    <td style="color:var(--muted);font-size:12px;">@(e.Details ?? "")</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
 @code {
     private List<App>? apps;
     private int appCount;
     private int publishedCount;
     private long totalDownloads;
+    private List<UpdateHub.Domain.Entities.AuditEntry>? recentActivity;
 
     protected override async Task OnInitializedAsync()
     {
         apps = await AdminSvc.GetAppsAsync();
         (appCount, publishedCount, totalDownloads) = await AdminSvc.GetStatsAsync();
+        recentActivity = await AuditSvc.GetRecentAsync(15);
+    }
+
+    private static string FormatDate(DateTime dt)
+    {
+        var diff = DateTime.UtcNow - dt;
+        if (diff.TotalMinutes < 1)  return "just now";
+        if (diff.TotalHours   < 1)  return $"{(int)diff.TotalMinutes}m ago";
+        if (diff.TotalDays    < 1)  return $"{(int)diff.TotalHours}h ago";
+        return dt.ToString("yyyy-MM-dd HH:mm");
     }
 }

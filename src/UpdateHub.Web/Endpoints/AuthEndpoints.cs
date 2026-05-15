@@ -107,6 +107,43 @@ public static class AuthEndpoints
             ctx.Response.Redirect("/login");
         }).DisableAntiforgery();
 
+        app.MapPost("/account/forgot", async (HttpContext ctx, UserService userSvc) =>
+        {
+            var form  = await ctx.Request.ReadFormAsync();
+            var who   = form["who"].ToString();
+            // Always claim success so the form doesn't leak which users exist.
+            _ = await userSvc.InitiatePasswordResetAsync(who);
+            ctx.Response.Redirect("/account/forgot?sent=1");
+        }).AllowAnonymous().DisableAntiforgery().RequireRateLimiting("login");
+
+        app.MapPost("/account/reset", async (HttpContext ctx, UserService userSvc) =>
+        {
+            var form    = await ctx.Request.ReadFormAsync();
+            var token   = form["token"].ToString();
+            var newPw   = form["new"].ToString();
+            var confirm = form["confirm"].ToString();
+
+            if (string.IsNullOrEmpty(token) || string.IsNullOrEmpty(newPw))
+            {
+                ctx.Response.Redirect($"/account/reset?token={Uri.EscapeDataString(token)}&error=missing");
+                return;
+            }
+            if (newPw != confirm)
+            {
+                ctx.Response.Redirect($"/account/reset?token={Uri.EscapeDataString(token)}&error=mismatch");
+                return;
+            }
+            try
+            {
+                await userSvc.ConsumePasswordResetAsync(token, newPw);
+                ctx.Response.Redirect("/login?reset=1");
+            }
+            catch (Exception)
+            {
+                ctx.Response.Redirect($"/account/reset?token={Uri.EscapeDataString(token)}&error=invalid");
+            }
+        }).AllowAnonymous().DisableAntiforgery().RequireRateLimiting("login");
+
         app.MapPost("/account/change-password", async (HttpContext ctx,
             UserService userSvc, AuditService audit) =>
         {

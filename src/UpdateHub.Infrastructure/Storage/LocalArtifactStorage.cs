@@ -56,4 +56,16 @@ public class LocalArtifactStorage : IArtifactStorage
     }
 
     public Stream OpenRead(string storedPath) => File.OpenRead(storedPath);
+
+    public long GetTotalBytes()
+    {
+        if (!Directory.Exists(_storagePath)) return 0;
+        long total = 0;
+        foreach (var f in Directory.EnumerateFiles(_storagePath, "*", SearchOption.AllDirectories))
+        {
+            try { total += new FileInfo(f).Length; }
+            catch { /* file disappeared between enumeration and stat — ignore */ }
+        }
+        return total;
+    }
 }

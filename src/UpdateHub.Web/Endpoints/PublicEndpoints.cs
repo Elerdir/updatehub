@@ -56,13 +56,38 @@ public static class PublicEndpoints
 
         app.MapGet("/api/downloads/{artifactId:guid}", async (
             Guid artifactId,
+            HttpContext ctx,
             IArtifactRepository artifacts,
-            IArtifactStorage storage) =>
+            IArtifactStorage storage,
+            IDownloadEventRepository downloads,
+            IReleaseRepository releases) =>
         {
             var artifact = await artifacts.GetByIdAsync(artifactId);
             if (artifact is null) return Results.NotFound();
 
             await artifacts.IncrementDownloadCountAsync(artifactId);
+
+            // Best-effort analytics event — failure must not break the download.
+            try
+            {
+                var release = await releases.GetByIdAsync(artifact.ReleaseId);
+                var ip      = ctx.Connection.RemoteIpAddress?.ToString() ?? "";
+                var ipHash  = string.IsNullOrEmpty(ip) ? null :
+                    Convert.ToHexString(System.Security.Cryptography.SHA256
+                        .HashData(System.Text.Encoding.UTF8.GetBytes(ip)))[..16].ToLowerInvariant();
+                await downloads.RecordAsync(new UpdateHub.Domain.Entities.DownloadEvent
+                {
+                    ArtifactId   = artifact.Id,
+                    AppId        = release?.AppId ?? Guid.Empty,
+                    AppSlug      = release?.App.Slug ?? "",
+                    Version      = release?.Version ?? "",
+                    Platform     = artifact.Platform,
+                    Architecture = artifact.Architecture,
+                    UserAgent    = ctx.Request.Headers.UserAgent.ToString(),
+                    IpHash       = ipHash,
+                });
+            }
+            catch { /* analytics is non-essential */ }
 
             var stream = storage.OpenRead(artifact.StoredPath);
             return Results.File(stream, "application/octet-stream", artifact.FileName);

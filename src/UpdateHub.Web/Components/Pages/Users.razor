@@ -183,11 +183,21 @@ else
 {
     <div class="modal-backdrop">
         <div class="modal-card">
-            <h2>@L["users.email.edit"]: @editEmailUser.Username</h2>
-            <p style="color:var(--muted);font-size:13px;">@L["users.email.hint"]</p>
+            <h2>@L["users.edit"]: @editEmailUser.Username</h2>
             <div class="field">
                 <label>@L["users.email"]</label>
                 <input type="email" @bind="editEmailValue" placeholder="user@example.com" autocomplete="off" />
+                <small style="color:var(--muted);">@L["users.email.hint"]</small>
+            </div>
+            <div class="field">
+                <label class="checkbox-label">
+                    <input type="checkbox" @bind="editForceChange" disabled="@(editEmailUser.Id == currentUserId)" />
+                    @L["users.forceChangePw"]
+                </label>
+                @if (editEmailUser.Id == currentUserId)
+                {
+                    <small style="color:var(--muted);">@L["users.forceChangePw.self"]</small>
+                }
             </div>
             @if (editEmailError is not null) { <div class="error">@editEmailError</div> }
             <div class="form-actions">
@@ -221,6 +231,7 @@ else
     private UpdateHub.Domain.Entities.User? editEmailUser;
     private string? editEmailValue;
     private string? editEmailError;
+    private bool    editForceChange;
 
     protected override async Task OnInitializedAsync()
     {
@@ -298,9 +309,10 @@ else
 
     private void StartEditEmail(UpdateHub.Domain.Entities.User u)
     {
-        editEmailUser  = u;
-        editEmailValue = u.Email;
-        editEmailError = null;
+        editEmailUser   = u;
+        editEmailValue  = u.Email;
+        editForceChange = u.MustChangePassword;
+        editEmailError  = null;
     }
 
     private async Task ConfirmEditEmail()
@@ -310,6 +322,11 @@ else
         try
         {
             await UserSvc.SetEmailAsync(editEmailUser.Id, editEmailValue, currentUserName);
+            if (editEmailUser.Id != currentUserId &&
+                editForceChange != editEmailUser.MustChangePassword)
+            {
+                await UserSvc.SetMustChangePasswordAsync(editEmailUser.Id, editForceChange, currentUserName);
+            }
             editEmailUser = null;
             await Load();
         }
