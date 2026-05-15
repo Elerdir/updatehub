@@ -2,22 +2,40 @@
 @inject IJSRuntime JS
 @inject UpdateHub.Web.Localization.Translator L
 
-<select class="pref-select" @bind="_current" @bind:after="OnChange">
-    <option value="auto">🖥️ &nbsp;@L["nav.theme.auto"]</option>
-    <option value="light">☀️ &nbsp;@L["nav.theme.light"]</option>
-    <option value="dark">🌙 &nbsp;@L["nav.theme.dark"]</option>
+<select class="pref-select" value="@_current" @onchange="OnChange">
+    <option value="auto">🖥️ @L["nav.theme.auto"]</option>
+    <option value="light">☀️ @L["nav.theme.light"]</option>
+    <option value="dark">🌙 @L["nav.theme.dark"]</option>
 </select>
 
 @code {
     private string _current = "auto";
 
+    // Read the user's saved choice from localStorage as soon as the circuit
+    // is up, so the dropdown reflects reality on the first interactive paint.
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
         if (!firstRender) return;
-        _current = await JS.InvokeAsync<string>("updateHubTheme.get");
-        StateHasChanged();
+        try
+        {
+            var stored = await JS.InvokeAsync<string>("updateHubTheme.get");
+            if (stored != _current)
+            {
+                _current = stored;
+                StateHasChanged();
+            }
+        }
+        catch (JSDisconnectedException)
+        {
+            // Circuit gone — ignore, the next render will retry
+        }
     }
 
-    private async Task OnChange() =>
-        await JS.InvokeVoidAsync("updateHubTheme.set", _current);
+    private async Task OnChange(ChangeEventArgs e)
+    {
+        var value = e.Value?.ToString();
+        if (string.IsNullOrEmpty(value)) return;
+        _current = value;
+        await JS.InvokeVoidAsync("updateHubTheme.set", value);
+    }
 }
