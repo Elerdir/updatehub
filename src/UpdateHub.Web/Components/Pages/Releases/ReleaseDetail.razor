@@ -26,15 +26,17 @@ else
             @if (release.IsMandatory) { <span class="badge mandatory">Mandatory</span> }
         </div>
         <div class="header-actions">
-            @if (release.Status == ReleaseStatus.Draft)
-            {
-                <button class="btn-primary" @onclick="Publish">Publish</button>
-            }
-            @if (release.Status == ReleaseStatus.Published)
-            {
-                <button class="btn-danger-outline" @onclick="Archive">Archive</button>
-            }
-            <button class="btn-ghost btn-sm" @onclick="ConfirmDelete">Delete release</button>
+            <AuthorizeView Roles="Admin,Manager">
+                @if (release.Status == ReleaseStatus.Draft)
+                {
+                    <button class="btn-primary" @onclick="Publish">Publish</button>
+                }
+                @if (release.Status == ReleaseStatus.Published)
+                {
+                    <button class="btn-danger-outline" @onclick="Archive">Archive</button>
+                }
+                <button class="btn-ghost btn-sm" @onclick="ConfirmDelete">Delete release</button>
+            </AuthorizeView>
         </div>
     </div>
 
@@ -50,6 +52,7 @@ else
         <h2>Artifacts</h2>
     </div>
 
+    <AuthorizeView Roles="Admin,Manager">
     <div class="card upload-form">
         <h3>Upload Artifact</h3>
         <div class="form-row">
@@ -88,6 +91,8 @@ else
         </div>
     </div>
 
+    </AuthorizeView>
+
     @if (release.Artifacts.Any())
     {
         <table class="table">
@@ -115,9 +120,11 @@ else
                         <td>@(a.Signature is not null ? "✓" : "—")</td>
                         <td>@a.DownloadCount</td>
                         <td>
-                            <button class="btn-danger-sm" @onclick="() => DeleteArtifact(a.Id)">
-                                Delete
-                            </button>
+                            <AuthorizeView Roles="Admin,Manager">
+                                <button class="btn-danger-sm" @onclick="() => DeleteArtifact(a.Id)">
+                                    Delete
+                                </button>
+                            </AuthorizeView>
                         </td>
                     </tr>
                 }

@@ -1,17 +1,16 @@
 @page "/settings"
-@attribute [Authorize]
+@attribute [Authorize(Roles = "Admin")]
 @rendermode InteractiveServer
 @inject SettingsService SettingsSvc
 @inject EmailNotificationService EmailSvc
 @inject IConfiguration Config
 @inject IJSRuntime JS
-@using OtpNet
-@using System.Security.Cryptography
+@inject UpdateHub.Web.Localization.Translator L
 
-<PageTitle>Settings — UpdateHub</PageTitle>
+<PageTitle>@L["page.settings"] — UpdateHub</PageTitle>
 
 <div class="page-header">
-    <h1>Settings</h1>
+    <h1>@L["page.settings"]</h1>
 </div>
 
 @* ── CI Token ────────────────────────────────────────────────────────────── *@
@@ -26,9 +25,9 @@
     {
         <div class="token-display">
             <div class="token-box">@_token</div>
-            <button class="btn-ghost btn-sm" @onclick="CopyToken">Copy</button>
+            <button class="btn-ghost btn-sm" @onclick="CopyToken">@L["common.copy"]</button>
         </div>
-        @if (_copied) { <div class="info" style="margin-top:8px;">Copied!</div> }
+        @if (_copied) { <div class="info" style="margin-top:8px;">@L["common.copied"]</div> }
     }
     else
     {
@@ -43,7 +42,7 @@
         {
             <span style="color:var(--muted);font-size:13px;margin-right:12px;">Rotate and invalidate current token?</span>
             <button class="btn-danger" @onclick="DoRotate">Yes, rotate</button>
-            <button class="btn-ghost btn-sm" style="margin-left:8px;" @onclick="() => _confirmRotate = false">Cancel</button>
+            <button class="btn-ghost btn-sm" style="margin-left:8px;" @onclick="() => _confirmRotate = false">@L["common.cancel"]</button>
         }
         else
         {
@@ -51,79 +50,6 @@
         }
     </div>
     @if (_rotateMsg is not null) { <div class="info" style="margin-top:8px;">@_rotateMsg</div> }
-</div>
-
-@* ── Change Password ─────────────────────────────────────────────────────── *@
-<div class="card" style="margin-bottom:24px;">
-    <h3>Change Password</h3>
-    <p style="color:var(--muted);margin-bottom:16px;font-size:13px;">
-        The new password is stored in the database and overrides <code>appsettings.json</code>.
-    </p>
-
-    <div class="field">
-        <label>Current password</label>
-        <input type="password" @bind="_currentPw" autocomplete="current-password" />
-    </div>
-    <div class="field">
-        <label>New password</label>
-        <input type="password" @bind="_newPw" autocomplete="new-password" />
-    </div>
-    <div class="field">
-        <label>Confirm new password</label>
-        <input type="password" @bind="_confirmPw" autocomplete="new-password" />
-    </div>
-    @if (_pwError  is not null) { <div class="error"  style="margin-bottom:12px;">@_pwError</div>  }
-    @if (_pwSuccess is not null) { <div class="info"  style="margin-bottom:12px;">@_pwSuccess</div> }
-    <button class="btn-primary" @onclick="ChangePassword">Save new password</button>
-</div>
-
-@* ── Two-Factor Authentication ───────────────────────────────────────────── *@
-<div class="card" style="margin-bottom:24px;">
-    <h3>Two-Factor Authentication (TOTP)</h3>
-    <p style="color:var(--muted);margin-bottom:16px;font-size:13px;">
-        Use any TOTP authenticator app (Google Authenticator, Authy, 1Password, etc.).
-    </p>
-
-    @if (_totpEnabled)
-    {
-        <div class="badge published" style="margin-bottom:16px;">2FA is enabled</div>
-        @if (_disableConfirm)
-        {
-            <div class="field">
-                <label>Enter current authenticator code to disable 2FA</label>
-                <input type="text" @bind="_totpDisableCode" inputmode="numeric" maxlength="6" placeholder="000000" />
-            </div>
-            @if (_totpError is not null) { <div class="error" style="margin-bottom:8px;">@_totpError</div> }
-            <button class="btn-danger" @onclick="Disable2FA">Confirm disable</button>
-            <button class="btn-ghost btn-sm" style="margin-left:8px;" @onclick="() => _disableConfirm = false">Cancel</button>
-        }
-        else
-        {
-            <button class="btn-danger-outline btn-sm" @onclick="() => _disableConfirm = true">Disable 2FA…</button>
-        }
-    }
-    else if (_totpSecret is null)
-    {
-        <div class="badge danger" style="margin-bottom:16px;">2FA is disabled</div>
-        <button class="btn-primary" @onclick="BeginSetup2FA">Enable 2FA…</button>
-    }
-    else
-    {
-        <p style="font-size:13px;margin-bottom:8px;">Scan this URI in your authenticator app or enter the secret manually:</p>
-        <div style="background:var(--code-bg);border-radius:6px;padding:12px;font-size:12px;word-break:break-all;margin-bottom:12px;">
-            <code>@_totpUri</code>
-        </div>
-        <p style="font-size:13px;color:var(--muted);margin-bottom:8px;">
-            Manual entry key: <strong>@_totpSecret</strong>
-        </p>
-        <div class="field">
-            <label>Enter the 6-digit code to confirm setup</label>
-            <input type="text" @bind="_totpConfirmCode" inputmode="numeric" maxlength="6" placeholder="000000" />
-        </div>
-        @if (_totpError is not null) { <div class="error" style="margin-bottom:8px;">@_totpError</div> }
-        <button class="btn-primary" @onclick="Confirm2FA">Activate 2FA</button>
-        <button class="btn-ghost btn-sm" style="margin-left:8px;" @onclick="() => _totpSecret = null">Cancel</button>
-    }
 </div>
 
 @* ── SMTP Notifications ──────────────────────────────────────────────────── *@
@@ -143,12 +69,12 @@
 </div>
 
 @code {
-    // ── CI token ──────────────────────────────────────────────────────────────
     private string? _token;
     private string  _masked = "••••••••••••••••••••••••••••••••";
     private bool    _confirmRotate;
     private bool    _copied;
     private string? _rotateMsg;
+    private string? _emailMsg;
 
     private async Task RevealToken()
     {
@@ -174,109 +100,6 @@
         _token = await SettingsSvc.RotateCiTokenAsync();
         _rotateMsg = "Token rotated — update your CI secrets with the new value above.";
     }
-
-    // ── Password change ───────────────────────────────────────────────────────
-    private string? _currentPw;
-    private string? _newPw;
-    private string? _confirmPw;
-    private string? _pwError;
-    private string? _pwSuccess;
-
-    private async Task ChangePassword()
-    {
-        _pwError = _pwSuccess = null;
-
-        if (string.IsNullOrWhiteSpace(_currentPw) ||
-            string.IsNullOrWhiteSpace(_newPw) ||
-            string.IsNullOrWhiteSpace(_confirmPw))
-        { _pwError = "All fields are required."; return; }
-
-        if (_newPw != _confirmPw)
-        { _pwError = "New password and confirmation do not match."; return; }
-
-        if (_newPw.Length < 8)
-        { _pwError = "Password must be at least 8 characters."; return; }
-
-        // Verify current password against DB hash or config fallback
-        var dbHash    = await SettingsSvc.GetAdminPasswordHashAsync();
-        var adminHash = string.IsNullOrWhiteSpace(dbHash)
-            ? (Config["UpdateHub:Admin:PasswordHash"] ?? "")
-            : dbHash;
-
-        if (string.IsNullOrEmpty(adminHash) || !BCrypt.Net.BCrypt.Verify(_currentPw, adminHash))
-        { _pwError = "Current password is incorrect."; return; }
-
-        var newHash = BCrypt.Net.BCrypt.HashPassword(_newPw, workFactor: 12);
-        await SettingsSvc.SetAdminPasswordHashAsync(newHash);
-        await EmailSvc.SendPasswordChangedAsync();
-
-        _currentPw = _newPw = _confirmPw = null;
-        _pwSuccess = "Password changed successfully.";
-    }
-
-    // ── TOTP 2FA ──────────────────────────────────────────────────────────────
-    private bool    _totpEnabled;
-    private string? _totpSecret;       // pending secret during setup
-    private string? _totpUri;          // otpauth:// URI shown to user
-    private string? _totpConfirmCode;
-    private string? _totpDisableCode;
-    private string? _totpError;
-    private bool    _disableConfirm;
-
-    protected override async Task OnInitializedAsync()
-    {
-        _totpEnabled = await SettingsSvc.IsTotpEnabledAsync();
-    }
-
-    private async Task BeginSetup2FA()
-    {
-        _totpError = null;
-        var secretBytes = RandomNumberGenerator.GetBytes(20);
-        _totpSecret = Base32Encoding.ToString(secretBytes);
-
-        var adminUser = Config["UpdateHub:Admin:Username"] ?? "admin";
-        _totpUri = $"otpauth://totp/UpdateHub:{Uri.EscapeDataString(adminUser)}" +
-                   $"?secret={_totpSecret}&issuer=UpdateHub&algorithm=SHA1&digits=6&period=30";
-    }
-
-    private async Task Confirm2FA()
-    {
-        _totpError = null;
-        if (string.IsNullOrWhiteSpace(_totpSecret) || string.IsNullOrWhiteSpace(_totpConfirmCode))
-        { _totpError = "Enter the 6-digit code from your authenticator."; return; }
-
-        var totp  = new Totp(Base32Encoding.ToBytes(_totpSecret));
-        var valid = totp.VerifyTotp(DateTime.UtcNow, _totpConfirmCode.Trim(), out _, new VerificationWindow(1, 1));
-
-        if (!valid) { _totpError = "Code is invalid or expired. Try again."; return; }
-
-        await SettingsSvc.EnableTotpAsync(_totpSecret);
-        _totpEnabled = true;
-        _totpSecret  = _totpUri = _totpConfirmCode = null;
-    }
-
-    private async Task Disable2FA()
-    {
-        _totpError = null;
-        if (string.IsNullOrWhiteSpace(_totpDisableCode))
-        { _totpError = "Enter your authenticator code to confirm."; return; }
-
-        var secret = await SettingsSvc.GetTotpSecretAsync();
-        if (string.IsNullOrEmpty(secret)) { _totpError = "No TOTP secret found."; return; }
-
-        var totp  = new Totp(Base32Encoding.ToBytes(secret));
-        var valid = totp.VerifyTotp(DateTime.UtcNow, _totpDisableCode.Trim(), out _, new VerificationWindow(1, 1));
-
-        if (!valid) { _totpError = "Code is invalid or expired."; return; }
-
-        await SettingsSvc.DisableTotpAsync();
-        _totpEnabled    = false;
-        _disableConfirm = false;
-        _totpDisableCode = null;
-    }
-
-    // ── Email test ────────────────────────────────────────────────────────────
-    private string? _emailMsg;
 
     private async Task SendTestEmail()
     {

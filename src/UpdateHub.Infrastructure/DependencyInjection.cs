@@ -40,6 +40,7 @@ public static class DependencyInjection
         services.AddScoped<ISettingsRepository,     SettingsRepository>();
         services.AddScoped<ILoginAttemptRepository, LoginAttemptRepository>();
         services.AddScoped<IAuditRepository,        AuditRepository>();
+        services.AddScoped<IUserRepository,         UserRepository>();
 
         services.AddSingleton<IArtifactStorage>(_ => new LocalArtifactStorage(storagePath));
 
@@ -56,6 +57,7 @@ public static class DependencyInjection
         services.AddScoped<AuditService>();
         services.AddScoped<AdminService>();
         services.AddScoped<SettingsService>();
+        services.AddScoped<UserService>();
         services.AddScoped<BruteForceProtectionService>();
         services.AddScoped<UpdateResolverService>(sp => new UpdateResolverService(
             sp.GetRequiredService<IReleaseRepository>(),

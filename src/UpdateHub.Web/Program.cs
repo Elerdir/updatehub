@@ -10,6 +10,7 @@ using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
 using Scalar.AspNetCore;
 using UpdateHub.Web.Localization;
+using UpdateHub.Web.Startup;
 using Serilog;
 using UpdateHub.Application.Services;
 using UpdateHub.Infrastructure;
@@ -116,7 +117,10 @@ builder.Services.AddHealthChecks()
 var app = builder.Build();
 
 if (!app.Environment.IsEnvironment("Testing"))
+{
     app.Services.MigrateDatabase();
+    await BootstrapSeeder.SeedAdminAsync(app.Services);
+}
 
 if (!app.Environment.IsDevelopment())
 {
@@ -152,6 +156,7 @@ app.Use(async (ctx, next) =>
 
 app.UseAuthentication();
 app.UseAuthorization();
+app.UseForceChangePassword();
 app.UseAntiforgery();
 
 app.MapHealthChecks("/health", new HealthCheckOptions

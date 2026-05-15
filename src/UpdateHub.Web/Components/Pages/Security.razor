@@ -36,22 +36,24 @@
         </div>
     </div>
 
-    @if (!string.IsNullOrWhiteSpace(manualBlockIp))
-    {
-        <div class="card" style="margin-bottom:16px;">
-            <div style="display:flex;align-items:center;gap:12px;">
-                <input @bind="manualBlockIp" placeholder="IP address" style="width:200px;padding:6px 10px;" />
-                <button class="btn-danger btn-sm" @onclick="ManualBlock">Block this IP</button>
-                <button class="btn-ghost btn-sm" @onclick="() => manualBlockIp = null">Cancel</button>
+    <AuthorizeView Roles="Admin">
+        @if (!string.IsNullOrWhiteSpace(manualBlockIp))
+        {
+            <div class="card" style="margin-bottom:16px;">
+                <div style="display:flex;align-items:center;gap:12px;">
+                    <input @bind="manualBlockIp" placeholder="IP address" style="width:200px;padding:6px 10px;" />
+                    <button class="btn-danger btn-sm" @onclick="ManualBlock">Block this IP</button>
+                    <button class="btn-ghost btn-sm" @onclick="() => manualBlockIp = null">Cancel</button>
+                </div>
             </div>
-        </div>
-    }
-    else
-    {
-        <div style="margin-bottom:16px;">
-            <button class="btn-danger-outline btn-sm" @onclick="() => manualBlockIp = string.Empty">+ Block IP manually…</button>
-        </div>
-    }
+        }
+        else
+        {
+            <div style="margin-bottom:16px;">
+                <button class="btn-danger-outline btn-sm" @onclick="() => manualBlockIp = string.Empty">+ Block IP manually…</button>
+            </div>
+        }
+    </AuthorizeView>
 
     @if (!Filtered.Any())
     {
@@ -84,18 +86,20 @@
                         <td>@(a.UnblockedAt.HasValue ? FormatDate(a.UnblockedAt.Value) : "—")</td>
                         <td><span class="ua-cell" title="@a.LastUserAgent">@TruncateUa(a.LastUserAgent)</span></td>
                         <td>
-                            <div style="display:flex;gap:6px;">
-                                @if (a.IsBlocked)
-                                {
-                                    <button class="btn-sm btn-outline" @onclick="() => Unblock(a.IpAddress)">Unblock</button>
-                                }
-                                else
-                                {
-                                    <button class="btn-danger-sm" @onclick="() => Block(a.IpAddress)">Block</button>
-                                }
-                                <button class="btn-ghost btn-sm" @onclick="() => DeleteRecord(a.IpAddress)"
-                                        title="Remove record">✕</button>
-                            </div>
+                            <AuthorizeView Roles="Admin">
+                                <div style="display:flex;gap:6px;">
+                                    @if (a.IsBlocked)
+                                    {
+                                        <button class="btn-sm btn-outline" @onclick="() => Unblock(a.IpAddress)">Unblock</button>
+                                    }
+                                    else
+                                    {
+                                        <button class="btn-danger-sm" @onclick="() => Block(a.IpAddress)">Block</button>
+                                    }
+                                    <button class="btn-ghost btn-sm" @onclick="() => DeleteRecord(a.IpAddress)"
+                                            title="Remove record">✕</button>
+                                </div>
+                            </AuthorizeView>
                         </td>
                     </tr>
                 }

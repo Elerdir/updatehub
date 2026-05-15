@@ -1,0 +1,179 @@
+@page "/account"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@inject UserService UserSvc
+@inject EmailNotificationService EmailSvc
+@inject AuthenticationStateProvider AuthState
+@inject IConfiguration Config
+@inject UpdateHub.Web.Localization.Translator L
+@using OtpNet
+@using System.Security.Cryptography
+
+<PageTitle>@L["account.title"] — UpdateHub</PageTitle>
+
+<div class="page-header">
+    <h1>@L["account.title"]</h1>
+</div>
+
+@* ── Change own password ─────────────────────────────────────────────────── *@
+<div class="card" style="margin-bottom:24px;">
+    <h3>@L["account.password"]</h3>
+
+    <div class="field">
+        <label>@L["changepw.current"]</label>
+        <input type="password" @bind="_currentPw" autocomplete="current-password" />
+    </div>
+    <div class="field">
+        <label>@L["changepw.new"]</label>
+        <input type="password" @bind="_newPw" autocomplete="new-password" />
+    </div>
+    <div class="field">
+        <label>@L["changepw.confirm"]</label>
+        <input type="password" @bind="_confirmPw" autocomplete="new-password" />
+    </div>
+    @if (_pwError   is not null) { <div class="error" style="margin-bottom:12px;">@_pwError</div>  }
+    @if (_pwSuccess is not null) { <div class="info"  style="margin-bottom:12px;">@_pwSuccess</div> }
+    <button class="btn-primary" @onclick="ChangePassword">@L["common.save"]</button>
+</div>
+
+@* ── 2FA ─────────────────────────────────────────────────────────────────── *@
+<div class="card">
+    <h3>@L["account.totp"]</h3>
+    <p style="color:var(--muted);margin-bottom:16px;font-size:13px;">
+        @L["account.totp.hint"]
+    </p>
+
+    @if (_totpEnabled)
+    {
+        <div class="badge published" style="margin-bottom:16px;">@L["account.totp.enabled"]</div>
+        @if (_disableConfirm)
+        {
+            <div class="field">
+                <label>@L["account.totp.disable.label"]</label>
+                <input type="text" @bind="_totpDisableCode" inputmode="numeric" maxlength="6" placeholder="000000" />
+            </div>
+            @if (_totpError is not null) { <div class="error" style="margin-bottom:8px;">@_totpError</div> }
+            <button class="btn-danger" @onclick="Disable2FA">@L["account.totp.disable.confirm"]</button>
+            <button class="btn-ghost btn-sm" style="margin-left:8px;" @onclick="() => _disableConfirm = false">@L["common.cancel"]</button>
+        }
+        else
+        {
+            <button class="btn-danger-outline btn-sm" @onclick="() => _disableConfirm = true">@L["account.totp.disable"]…</button>
+        }
+    }
+    else if (_pendingSecret is null)
+    {
+        <div class="badge danger" style="margin-bottom:16px;">@L["account.totp.disabled"]</div>
+        <button class="btn-primary" @onclick="BeginSetup2FA">@L["account.totp.enable"]…</button>
+    }
+    else
+    {
+        <p style="font-size:13px;margin-bottom:8px;">@L["account.totp.scanHint"]</p>
+        <div style="background:var(--surface2);border-radius:6px;padding:12px;font-size:12px;word-break:break-all;margin-bottom:12px;">
+            <code>@_totpUri</code>
+        </div>
+        <p style="font-size:13px;color:var(--muted);margin-bottom:8px;">
+            @L["account.totp.manualKey"]: <strong>@_pendingSecret</strong>
+        </p>
+        <div class="field">
+            <label>@L["account.totp.confirm.label"]</label>
+            <input type="text" @bind="_totpConfirmCode" inputmode="numeric" maxlength="6" placeholder="000000" />
+        </div>
+        @if (_totpError is not null) { <div class="error" style="margin-bottom:8px;">@_totpError</div> }
+        <button class="btn-primary" @onclick="Confirm2FA">@L["account.totp.activate"]</button>
+        <button class="btn-ghost btn-sm" style="margin-left:8px;" @onclick="() => _pendingSecret = null">@L["common.cancel"]</button>
+    }
+</div>
+
+@code {
+    private Guid   _userId;
+    private string _username = "";
+
+    private string? _currentPw;
+    private string? _newPw;
+    private string? _confirmPw;
+    private string? _pwError;
+    private string? _pwSuccess;
+
+    private bool    _totpEnabled;
+    private string? _pendingSecret;
+    private string? _totpUri;
+    private string? _totpConfirmCode;
+    private string? _totpDisableCode;
+    private string? _totpError;
+    private bool    _disableConfirm;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await AuthState.GetAuthenticationStateAsync();
+        var idClaim = state.User.FindFirst(UpdateHub.Web.Endpoints.AuthEndpoints.ClaimUserId)?.Value;
+        if (Guid.TryParse(idClaim, out var id)) _userId = id;
+        _username = state.User.Identity?.Name ?? "";
+
+        _totpEnabled = await UserSvc.IsTotpEnabledAsync(_userId);
+    }
+
+    private async Task ChangePassword()
+    {
+        _pwError = _pwSuccess = null;
+        if (string.IsNullOrWhiteSpace(_currentPw) ||
+            string.IsNullOrWhiteSpace(_newPw) ||
+            string.IsNullOrWhiteSpace(_confirmPw))
+        { _pwError = L["changepw.error.missing"]; return; }
+
+        if (_newPw != _confirmPw)
+        { _pwError = L["changepw.error.mismatch"]; return; }
+
+        try
+        {
+            await UserSvc.ChangeOwnPasswordAsync(_userId, _currentPw, _newPw);
+            await EmailSvc.SendPasswordChangedAsync();
+            _currentPw = _newPw = _confirmPw = null;
+            _pwSuccess = L["account.password.saved"];
+        }
+        catch (Exception ex) { _pwError = ex.Message; }
+    }
+
+    private void BeginSetup2FA()
+    {
+        _totpError = null;
+        var secretBytes = RandomNumberGenerator.GetBytes(20);
+        _pendingSecret  = Base32Encoding.ToString(secretBytes);
+        _totpUri = $"otpauth://totp/UpdateHub:{Uri.EscapeDataString(_username)}" +
+                   $"?secret={_pendingSecret}&issuer=UpdateHub&algorithm=SHA1&digits=6&period=30";
+    }
+
+    private async Task Confirm2FA()
+    {
+        _totpError = null;
+        if (string.IsNullOrWhiteSpace(_pendingSecret) || string.IsNullOrWhiteSpace(_totpConfirmCode))
+        { _totpError = L["account.totp.code.required"]; return; }
+
+        var totp  = new Totp(Base32Encoding.ToBytes(_pendingSecret));
+        var valid = totp.VerifyTotp(DateTime.UtcNow, _totpConfirmCode.Trim(), out _, new VerificationWindow(1, 1));
+        if (!valid) { _totpError = L["login.totp.invalid"]; return; }
+
+        await UserSvc.EnableTotpAsync(_userId, _pendingSecret);
+        _totpEnabled    = true;
+        _pendingSecret  = _totpUri = _totpConfirmCode = null;
+    }
+
+    private async Task Disable2FA()
+    {
+        _totpError = null;
+        if (string.IsNullOrWhiteSpace(_totpDisableCode))
+        { _totpError = L["account.totp.code.required"]; return; }
+
+        var secret = await UserSvc.GetTotpSecretAsync(_userId);
+        if (string.IsNullOrEmpty(secret)) { _totpError = L["login.totp.invalid"]; return; }
+
+        var totp  = new Totp(Base32Encoding.ToBytes(secret));
+        var valid = totp.VerifyTotp(DateTime.UtcNow, _totpDisableCode.Trim(), out _, new VerificationWindow(1, 1));
+        if (!valid) { _totpError = L["login.totp.invalid"]; return; }
+
+        await UserSvc.DisableTotpAsync(_userId);
+        _totpEnabled     = false;
+        _disableConfirm  = false;
+        _totpDisableCode = null;
+    }
+}

@@ -11,6 +11,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<AppSetting>   Settings      => Set<AppSetting>();
     public DbSet<LoginAttempt> LoginAttempts => Set<LoginAttempt>();
     public DbSet<AuditEntry>   AuditEntries  => Set<AuditEntry>();
+    public DbSet<User>         Users         => Set<User>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -22,6 +23,9 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
 
         modelBuilder.Entity<App>()
             .HasIndex(a => a.Slug).IsUnique();
+
+        modelBuilder.Entity<User>()
+            .HasIndex(u => u.Username).IsUnique();
 
         modelBuilder.Entity<Release>()
             .HasOne(r => r.App)

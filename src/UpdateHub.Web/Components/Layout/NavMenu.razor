@@ -6,9 +6,13 @@
     <ul>
         <li><NavLink href="/"         Match="NavLinkMatch.All">@L["nav.dashboard"]</NavLink></li>
         <li><NavLink href="/apps">@L["nav.applications"]</NavLink></li>
-        <li><NavLink href="/settings">@L["nav.settings"]</NavLink></li>
+        <AuthorizeView Roles="Admin">
+            <li><NavLink href="/users">@L["nav.users"]</NavLink></li>
+            <li><NavLink href="/settings">@L["nav.settings"]</NavLink></li>
+        </AuthorizeView>
         <li><NavLink href="/security">@L["nav.security"]</NavLink></li>
         <li><NavLink href="/audit">@L["nav.audit"]</NavLink></li>
+        <li><NavLink href="/account">@L["nav.account"]</NavLink></li>
     </ul>
     <div class="sidebar-footer">
         <ThemeSwitcher />

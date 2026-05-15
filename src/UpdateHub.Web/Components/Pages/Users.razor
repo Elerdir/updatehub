@@ -1,0 +1,269 @@
+@page "/users"
+@attribute [Authorize(Roles = "Admin")]
+@rendermode InteractiveServer
+@inject UserService UserSvc
+@inject AuthenticationStateProvider AuthState
+@inject IJSRuntime JS
+@inject UpdateHub.Web.Localization.Translator L
+@using UpdateHub.Domain.Enums
+
+<PageTitle>@L["users.title"] — UpdateHub</PageTitle>
+
+<div class="page-header">
+    <h1>@L["users.title"]</h1>
+    <div class="header-actions">
+        <button class="btn-primary" @onclick="() => showCreate = !showCreate">+ @L["users.create"]</button>
+    </div>
+</div>
+
+@if (showCreate)
+{
+    <div class="card">
+        <h3>@L["users.create"]</h3>
+        <div class="form-row">
+            <div class="field">
+                <label>@L["users.username"]</label>
+                <input @bind="newUsername" autocomplete="off" />
+            </div>
+            <div class="field">
+                <label>@L["users.role"]</label>
+                <select @bind="newRole">
+                    <option value="Admin">@L["role.Admin"]</option>
+                    <option value="Manager">@L["role.Manager"]</option>
+                    <option value="Viewer">@L["role.Viewer"]</option>
+                </select>
+            </div>
+        </div>
+        <div class="field">
+            <label>@L["users.tempPassword"]</label>
+            <div style="display:flex;gap:8px;">
+                <input @bind="newTempPw" autocomplete="off" style="flex:1;" />
+                <button class="btn-ghost btn-sm" @onclick="GenerateTemp">@L["users.generate"]</button>
+            </div>
+            <small style="color:var(--muted);">@L["users.tempPasswordHint"]</small>
+        </div>
+        @if (createError is not null) { <div class="error">@createError</div> }
+        <div class="form-actions">
+            <button class="btn-primary" @onclick="CreateUser">@L["common.create"]</button>
+            <button class="btn-ghost" @onclick="CancelCreate">@L["common.cancel"]</button>
+        </div>
+    </div>
+}
+
+@if (lastTempPassword is not null)
+{
+    <div class="card" style="border-color:var(--warning);">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+            <div>
+                <strong>@L["users.copyNow.title"]: @lastTempUsername</strong>
+                <div style="color:var(--muted);font-size:12px;margin-top:4px;">@L["users.copyNow.hint"]</div>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center;">
+                <code style="font-size:13px;padding:6px 10px;background:var(--code-bg,var(--surface2));border-radius:4px;">@lastTempPassword</code>
+                <button class="btn-ghost btn-sm" @onclick="CopyTemp">@L["common.copy"]</button>
+                <button class="btn-ghost btn-sm" @onclick="() => lastTempPassword = null">×</button>
+            </div>
+        </div>
+        @if (copiedTemp) { <div style="font-size:12px;color:var(--success);margin-top:6px;">@L["common.copied"]</div> }
+    </div>
+}
+
+@if (users is null)
+{
+    <p class="loading">@L["common.loading"]</p>
+}
+else
+{
+    <table class="table">
+        <thead>
+            <tr>
+                <th>@L["users.username"]</th>
+                <th>@L["users.role"]</th>
+                <th>@L["users.status"]</th>
+                <th>@L["users.lastLogin"]</th>
+                <th>2FA</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var u in users)
+            {
+                <tr>
+                    <td>
+                        <strong>@u.Username</strong>
+                        @if (u.MustChangePassword)
+                        {
+                            <span class="badge warning" style="margin-left:8px;">@L["users.pendingPwChange"]</span>
+                        }
+                        @if (u.Id == currentUserId)
+                        {
+                            <span class="badge published" style="margin-left:8px;">@L["users.you"]</span>
+                        }
+                    </td>
+                    <td>
+                        <select value="@u.Role" @onchange="@(e => ChangeRole(u.Id, e.Value?.ToString() ?? ""))"
+                                disabled="@(u.Id == currentUserId)">
+                            <option value="Admin">@L["role.Admin"]</option>
+                            <option value="Manager">@L["role.Manager"]</option>
+                            <option value="Viewer">@L["role.Viewer"]</option>
+                        </select>
+                    </td>
+                    <td>
+                        @if (u.IsActive)
+                        {
+                            <span class="badge published">@L["users.active"]</span>
+                        }
+                        else
+                        {
+                            <span class="badge archived">@L["users.disabled"]</span>
+                        }
+                    </td>
+                    <td>@(u.LastLoginAt?.ToString("yyyy-MM-dd HH:mm") ?? "—")</td>
+                    <td>@(u.TotpEnabled ? "✓" : "—")</td>
+                    <td style="display:flex;gap:6px;">
+                        <button class="btn-ghost btn-sm" @onclick="() => StartReset(u)">@L["users.reset"]</button>
+                        @if (u.Id != currentUserId)
+                        {
+                            @if (u.IsActive)
+                            {
+                                <button class="btn-danger-sm" @onclick="() => Toggle(u.Id, false)">@L["users.disable"]</button>
+                            }
+                            else
+                            {
+                                <button class="btn-ghost btn-sm" @onclick="() => Toggle(u.Id, true)">@L["users.enable"]</button>
+                            }
+                        }
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@if (resetUser is not null)
+{
+    <div class="modal-backdrop">
+        <div class="modal-card">
+            <h2>@L["users.reset"]: @resetUser.Username</h2>
+            <p>@L["users.reset.hint"]</p>
+            <div class="field">
+                <label>@L["users.tempPassword"]</label>
+                <div style="display:flex;gap:8px;">
+                    <input @bind="resetTempPw" autocomplete="off" style="flex:1;" />
+                    <button class="btn-ghost btn-sm" @onclick="GenerateResetTemp">@L["users.generate"]</button>
+                </div>
+            </div>
+            @if (resetError is not null) { <div class="error">@resetError</div> }
+            <div class="form-actions">
+                <button class="btn-primary" @onclick="ConfirmReset">@L["users.reset"]</button>
+                <button class="btn-ghost" @onclick="() => { resetUser = null; resetTempPw = null; resetError = null; }">@L["common.cancel"]</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<UpdateHub.Domain.Entities.User>? users;
+    private Guid currentUserId;
+    private string currentUserName = "";
+
+    private bool   showCreate;
+    private string newUsername = "";
+    private string newRole     = "Viewer";
+    private string? newTempPw;
+    private string? createError;
+
+    private string? lastTempPassword;
+    private string? lastTempUsername;
+    private bool    copiedTemp;
+
+    private UpdateHub.Domain.Entities.User? resetUser;
+    private string? resetTempPw;
+    private string? resetError;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await AuthState.GetAuthenticationStateAsync();
+        var idClaim = state.User.FindFirst(UpdateHub.Web.Endpoints.AuthEndpoints.ClaimUserId)?.Value;
+        if (Guid.TryParse(idClaim, out var id)) currentUserId = id;
+        currentUserName = state.User.Identity?.Name ?? "admin";
+        await Load();
+    }
+
+    private async Task Load() => users = await UserSvc.GetAllAsync();
+
+    private void GenerateTemp() => newTempPw = UserService.GenerateTempPassword();
+    private void GenerateResetTemp() => resetTempPw = UserService.GenerateTempPassword();
+
+    private async Task CreateUser()
+    {
+        createError = null;
+        try
+        {
+            var role = Enum.Parse<UserRole>(newRole);
+            var pw   = string.IsNullOrWhiteSpace(newTempPw) ? UserService.GenerateTempPassword() : newTempPw;
+            await UserSvc.CreateAsync(newUsername, pw, role, currentUserId, currentUserName);
+            lastTempPassword = pw;
+            lastTempUsername = newUsername;
+            await CancelCreate();
+            await Load();
+        }
+        catch (Exception ex) { createError = ex.Message; }
+    }
+
+    private Task CancelCreate()
+    {
+        showCreate  = false;
+        newUsername = "";
+        newRole     = "Viewer";
+        newTempPw   = null;
+        createError = null;
+        return Task.CompletedTask;
+    }
+
+    private async Task CopyTemp()
+    {
+        if (lastTempPassword is null) return;
+        await JS.InvokeVoidAsync("navigator.clipboard.writeText", lastTempPassword);
+        copiedTemp = true;
+        StateHasChanged();
+        await Task.Delay(2000);
+        copiedTemp = false;
+    }
+
+    private void StartReset(UpdateHub.Domain.Entities.User u)
+    {
+        resetUser   = u;
+        resetTempPw = UserService.GenerateTempPassword();
+        resetError  = null;
+    }
+
+    private async Task ConfirmReset()
+    {
+        if (resetUser is null) return;
+        resetError = null;
+        try
+        {
+            await UserSvc.ResetPasswordAsync(resetUser.Id, resetTempPw ?? "", currentUserName);
+            lastTempPassword = resetTempPw;
+            lastTempUsername = resetUser.Username;
+            resetUser   = null;
+            resetTempPw = null;
+            await Load();
+        }
+        catch (Exception ex) { resetError = ex.Message; }
+    }
+
+    private async Task Toggle(Guid userId, bool active)
+    {
+        await UserSvc.SetActiveAsync(userId, active, currentUserName);
+        await Load();
+    }
+
+    private async Task ChangeRole(Guid userId, string roleStr)
+    {
+        if (!Enum.TryParse<UserRole>(roleStr, out var role)) return;
+        await UserSvc.SetRoleAsync(userId, role, currentUserName);
+        await Load();
+    }
+}
