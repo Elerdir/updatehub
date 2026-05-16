@@ -11,11 +11,15 @@ COPY src/UpdateHub.Web/UpdateHub.Web.csproj                   src/UpdateHub.Web/
 
 RUN dotnet restore src/UpdateHub.Web/UpdateHub.Web.csproj
 
-# Copy source and publish
+# Copy source and publish.
+# We intentionally let publish re-run restore on its own. With --no-restore,
+# the .NET 10 static-web-assets target that materialises framework files
+# (notably /_framework/blazor.web.js) gets skipped, the published wwwroot
+# ends up without an _framework directory, and the Blazor circuit can't
+# hydrate in the browser. Restore is a few extra seconds, well worth it.
 COPY src/ src/
 RUN dotnet publish src/UpdateHub.Web/UpdateHub.Web.csproj \
         -c Release \
-        --no-restore \
         -o /app/publish
 
 # ── Runtime stage ─────────────────────────────────────────────────────────────

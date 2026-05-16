@@ -138,7 +138,11 @@ if (!app.Environment.IsDevelopment())
 app.UseForwardedHeaders();
 
 app.UseRequestLocalization();
-app.UseStaticFiles();
+// MapStaticAssets is the .NET 9+ replacement for UseStaticFiles. It serves
+// our own wwwroot AND the framework-shipped /_framework/blazor.web.js that
+// Blazor Server needs for SignalR hydration; UseStaticFiles alone would 404
+// on that endpoint.
+app.MapStaticAssets();
 app.UseRateLimiter();
 
 // Security headers
@@ -214,7 +218,8 @@ app.MapGet("/account/culture", (HttpContext ctx, string lang, string? returnUrl)
 }).AllowAnonymous();
 
 app.MapRazorComponents<AppShell>()
-    .AddInteractiveServerRenderMode();
+    .AddInteractiveServerRenderMode()
+    .WithStaticAssets();
 
 app.Run();
 
