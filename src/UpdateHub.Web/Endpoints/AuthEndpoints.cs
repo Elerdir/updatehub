@@ -150,7 +150,10 @@ public static class AuthEndpoints
             }
         }).AllowAnonymous().DisableAntiforgery().RequireRateLimiting("login");
 
-        app.MapPost("/account/change-password", async (HttpContext ctx,
+        // POST goes to a distinct path so the route doesn't collide with the
+        // Razor Component at @page "/account/change-password" (the page handles
+        // GET, the Minimal API handler handles the form submit).
+        app.MapPost("/account/password/change", async (HttpContext ctx,
             UserService userSvc, AuditService audit) =>
         {
             var idClaim = ctx.User.FindFirst(ClaimUserId)?.Value;
