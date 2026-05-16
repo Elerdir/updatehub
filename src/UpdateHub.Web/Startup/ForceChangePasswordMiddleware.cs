@@ -20,8 +20,12 @@ public static class ForceChangePasswordMiddleware
 
             var path = ctx.Request.Path.Value ?? "";
 
-            // Always-allowed paths so the user can complete the flow or sign out
+            // Always-allowed paths so the user can complete the flow or sign out.
+            // Both the GET page (/account/change-password) and the POST handler
+            // (/account/password/change) must pass through, otherwise the
+            // submission gets bounced back to the GET and the password never changes.
             if (path.StartsWith("/account/change-password", StringComparison.OrdinalIgnoreCase) ||
+                path.StartsWith("/account/password/change", StringComparison.OrdinalIgnoreCase) ||
                 path.StartsWith("/account/logout", StringComparison.OrdinalIgnoreCase) ||
                 path.StartsWith("/health", StringComparison.OrdinalIgnoreCase) ||
                 path.StartsWith("/_framework", StringComparison.OrdinalIgnoreCase) ||

@@ -22,20 +22,31 @@ using UpdateHub.Web.Endpoints;
 using UpdateHub.Web.HealthChecks;
 
 // ── Serilog ───────────────────────────────────────────────────────────────────
-Log.Logger = new LoggerConfiguration()
-    .ReadFrom.Configuration(new ConfigurationBuilder()
-        .AddJsonFile("appsettings.json", optional: true)
-        .AddJsonFile($"appsettings.{Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "Production"}.json", optional: true)
-        .Build())
-    .Enrich.FromLogContext()
-    .CreateBootstrapLogger();
+// Skip the bootstrap logger in the test environment — WebApplicationFactory
+// runs Program.cs once per IClassFixture, and the second invocation can't
+// re-freeze the same static Log.Logger (throws "The logger is already frozen").
+if (Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") != "Testing")
+{
+    Log.Logger = new LoggerConfiguration()
+        .ReadFrom.Configuration(new ConfigurationBuilder()
+            .AddJsonFile("appsettings.json", optional: true)
+            .AddJsonFile($"appsettings.{Environment.GetEnvironmentVariable("ASPNETCORE_ENVIRONMENT") ?? "Production"}.json", optional: true)
+            .Build())
+        .Enrich.FromLogContext()
+        .CreateBootstrapLogger();
+}
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Host.UseSerilog((ctx, services, cfg) => cfg
-    .ReadFrom.Configuration(ctx.Configuration)
-    .ReadFrom.Services(services)
-    .Enrich.FromLogContext());
+// Same reason as the bootstrap logger guard above: tests share the process
+// between fixtures and freezing the global Log.Logger more than once throws.
+if (!builder.Environment.IsEnvironment("Testing"))
+{
+    builder.Host.UseSerilog((ctx, services, cfg) => cfg
+        .ReadFrom.Configuration(ctx.Configuration)
+        .ReadFrom.Services(services)
+        .Enrich.FromLogContext());
+}
 
 builder.Services.Configure<ForwardedHeadersOptions>(options =>
 {
