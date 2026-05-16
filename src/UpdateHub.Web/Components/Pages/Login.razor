@@ -1,34 +1,51 @@
 @page "/login"
 @attribute [AllowAnonymous]
 @layout UpdateHub.Web.Components.Layout.EmptyLayout
+@inject UpdateHub.Web.Localization.Translator L
 
-<PageTitle>Login — UpdateHub</PageTitle>
+<PageTitle>@L["login.title"] — UpdateHub</PageTitle>
 
 <div class="login-container">
     <div class="login-card">
         <div class="login-brand">UpdateHub</div>
         <form method="post" action="/account/login">
             <AntiforgeryToken />
-            @if (HasError)
+            @if (IsBlocked)
             {
-                <div class="error">Invalid username or password.</div>
+                <div class="error">@L["login.blocked"]</div>
+            }
+            else if (HasError)
+            {
+                <div class="error">@L["login.invalid"]</div>
             }
             <div class="field">
-                <label for="username">Username</label>
+                <label for="username">@L["login.username"]</label>
                 <input id="username" type="text" name="username" autocomplete="username" required autofocus />
             </div>
             <div class="field">
-                <label for="password">Password</label>
+                <label for="password">@L["login.password"]</label>
                 <input id="password" type="password" name="password" autocomplete="current-password" required />
             </div>
-            <button type="submit" class="btn-primary btn-block">Sign in</button>
+            <button type="submit" class="btn-primary btn-block">@L["login.submit"]</button>
         </form>
+        @if (JustReset)
+        {
+            <div class="info" style="margin-top:16px;text-align:center;">@L["login.reset.success"]</div>
+        }
+        <div style="margin-top:16px;text-align:center;">
+            <a href="/account/forgot" style="font-size:13px;color:var(--muted);">@L["login.forgot"]</a>
+        </div>
     </div>
 </div>
 
 @code {
     [SupplyParameterFromQuery(Name = "error")]
-    private int? ErrorCode { get; set; }
+    private string? ErrorCode { get; set; }
 
-    private bool HasError => ErrorCode == 1;
+    [SupplyParameterFromQuery(Name = "reset")]
+    private string? ResetCode { get; set; }
+
+    private bool HasError    => ErrorCode == "1";
+    private bool IsBlocked   => ErrorCode == "blocked";
+    private bool JustReset   => ResetCode == "1";
 }

@@ -1,0 +1,106 @@
+@page "/audit"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@inject AuditService AuditSvc
+@using UpdateHub.Domain.Entities
+
+<PageTitle>Audit Log — UpdateHub</PageTitle>
+
+<div class="page-header">
+    <h1>Audit Log</h1>
+    <div class="header-actions">
+        <a class="btn-ghost btn-sm" href="/audit/export.csv" download>CSV</a>
+        <button class="btn-ghost btn-sm" @onclick="Load">Refresh</button>
+    </div>
+</div>
+
+@if (entries is null)
+{
+    <p class="loading">Loading…</p>
+}
+else
+{
+    <div style="display:flex;gap:8px;margin-bottom:16px;align-items:center;">
+        <input @bind="filterText" @bind:event="oninput"
+               placeholder="Filter by action, actor, details…"
+               style="width:280px;padding:6px 10px;" />
+        <span style="color:var(--muted);font-size:13px;">@Filtered.Count entries</span>
+    </div>
+
+    @if (!Filtered.Any())
+    {
+        <div class="empty-state"><p>No audit entries found.</p></div>
+    }
+    else
+    {
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Time</th>
+                    <th>Actor</th>
+                    <th>Action</th>
+                    <th>Entity</th>
+                    <th>Details</th>
+                    <th>IP</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var e in Filtered)
+                {
+                    <tr>
+                        <td title="@e.OccurredAt.ToString("o")">@FormatDate(e.OccurredAt)</td>
+                        <td><code>@e.Actor</code></td>
+                        <td><span class="badge @ActionClass(e.Action)">@e.Action</span></td>
+                        <td>
+                            @if (e.EntityType is not null)
+                            {
+                                <span style="font-size:12px;color:var(--muted);">@e.EntityType</span>
+                            }
+                        </td>
+                        <td style="font-size:13px;max-width:260px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;"
+                            title="@e.Details">@e.Details</td>
+                        <td><code style="font-size:11px;">@(e.IpAddress ?? "—")</code></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+}
+
+@code {
+    private List<AuditEntry>? entries;
+    private string? filterText;
+
+    private List<AuditEntry> Filtered =>
+        entries is null ? [] :
+        string.IsNullOrWhiteSpace(filterText) ? entries :
+        entries.Where(e =>
+            e.Action.Contains(filterText, StringComparison.OrdinalIgnoreCase) ||
+            e.Actor.Contains(filterText, StringComparison.OrdinalIgnoreCase) ||
+            (e.Details?.Contains(filterText, StringComparison.OrdinalIgnoreCase) ?? false) ||
+            (e.EntityType?.Contains(filterText, StringComparison.OrdinalIgnoreCase) ?? false))
+        .ToList();
+
+    protected override async Task OnInitializedAsync() => await Load();
+
+    private async Task Load() => entries = await AuditSvc.GetRecentAsync(500);
+
+    private static string FormatDate(DateTime dt)
+    {
+        var diff = DateTime.UtcNow - dt;
+        if (diff.TotalMinutes < 1)  return "just now";
+        if (diff.TotalHours   < 1)  return $"{(int)diff.TotalMinutes}m ago";
+        if (diff.TotalDays    < 1)  return $"{(int)diff.TotalHours}h ago";
+        return dt.ToString("yyyy-MM-dd HH:mm");
+    }
+
+    private static string ActionClass(string action) => action switch
+    {
+        var a when a.StartsWith("Delete")  => "danger",
+        var a when a.StartsWith("Publish") => "published",
+        var a when a.StartsWith("Login")   => "warning",
+        var a when a.Contains("Blocked")   => "danger",
+        var a when a.Contains("Token")     => "warning",
+        _                                  => "draft"
+    };
+}

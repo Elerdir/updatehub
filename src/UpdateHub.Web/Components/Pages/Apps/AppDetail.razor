@@ -2,115 +2,183 @@
 @attribute [Authorize]
 @rendermode InteractiveServer
 @inject AdminService AdminSvc
+@inject AuditService AuditSvc
 @inject NavigationManager Nav
 @inject IConfiguration Config
+@inject IJSRuntime JS
+@inject UpdateHub.Web.Localization.Translator L
+@using UpdateHub.Domain.Enums
 
 <PageTitle>@(app?.Name ?? "App") — UpdateHub</PageTitle>
 
 @if (app is null)
 {
-    <p class="loading">Loading...</p>
+    <p class="loading">@L["common.loading"]</p>
 }
 else
 {
     <div class="breadcrumb">
-        <a href="/apps">Applications</a> / @app.Name
+        <a href="/apps">@L["page.apps"]</a> / @app.Name
     </div>
 
     <div class="page-header">
         <h1>@app.Name</h1>
         <div class="header-actions">
-            <button class="btn-ghost btn-sm" @onclick="() => showEditForm = !showEditForm">Edit</button>
-            <button class="btn-danger-outline btn-sm" @onclick="ConfirmDelete">Delete app</button>
+            <AuthorizeView Roles="Admin,Manager">
+                <button class="btn-ghost btn-sm" @onclick="() => showEditForm = !showEditForm">@L["common.edit"]</button>
+            </AuthorizeView>
+            <AuthorizeView Roles="Admin">
+                <button class="btn-danger-outline btn-sm" @onclick="ConfirmDelete">@L["apps.delete"]</button>
+            </AuthorizeView>
         </div>
     </div>
 
     @if (showEditForm)
     {
         <div class="card">
-            <h3>Edit Application</h3>
+            <h3>@L["apps.edit"]</h3>
             <div class="field">
-                <label>Name</label>
+                <label>@L["common.name"]</label>
                 <input @bind="editName" />
             </div>
             <div class="field">
-                <label>Description</label>
+                <label>@L["common.description"]</label>
                 <textarea @bind="editDescription" rows="2"></textarea>
             </div>
+            <AuthorizeView Roles="Admin" Context="adminCtx">
+                <div class="field">
+                    <label>@L["apps.webhookUrl"] <span class="hint">@L["apps.webhookUrl.hint"]</span></label>
+                    <input @bind="editWebhookUrl" placeholder="https://hooks.slack.com/services/…" />
+                </div>
+            </AuthorizeView>
             @if (editError is not null) { <div class="error">@editError</div> }
             <div class="form-actions">
-                <button class="btn-primary" @onclick="SaveEdit">Save</button>
-                <button class="btn-ghost" @onclick="() => showEditForm = false">Cancel</button>
+                <button class="btn-primary" @onclick="SaveEdit">@L["common.save"]</button>
+                <button class="btn-ghost" @onclick="() => showEditForm = false">@L["common.cancel"]</button>
             </div>
         </div>
     }
 
+    @* Per-app CI token *@
+    <AuthorizeView Roles="Admin">
+    <div class="card" style="margin-bottom:16px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+            <div>
+                <strong>@L["apps.appToken"]</strong>
+                <span style="font-size:12px;color:var(--muted);margin-left:8px;">
+                    @(app.CiToken is not null ? L["apps.appToken.custom"] : L["apps.appToken.global"])
+                </span>
+                @if (lastRotatedAt is { } rotated)
+                {
+                    var age = DateTime.UtcNow - rotated;
+                    var ageStr = age.TotalDays < 1
+                        ? L["apps.appToken.rotated.today"]
+                        : $"{(int)age.TotalDays} {L["storage.days"]}";
+                    var warn = age.TotalDays > 90;
+                    <span style="font-size:11px;margin-left:8px;color:@(warn ? "var(--warning)" : "var(--muted)");">
+                        @L["apps.appToken.rotated"]: @ageStr
+                        @if (warn) { <span> ⚠</span> }
+                    </span>
+                }
+            </div>
+            <div style="display:flex;gap:8px;">
+                @if (appTokenRevealed && app.CiToken is not null)
+                {
+                    <code style="font-size:12px;padding:4px 8px;background:var(--surface2);border-radius:4px;">@app.CiToken</code>
+                    <button class="btn-ghost btn-sm" @onclick="() => Copy(app.CiToken!)">@L["common.copy"]</button>
+                }
+                @if (app.CiToken is null)
+                {
+                    <button class="btn-ghost btn-sm" @onclick="GenerateAppToken">@L["apps.appToken.generate"]</button>
+                }
+                else
+                {
+                    <button class="btn-ghost btn-sm" @onclick="() => appTokenRevealed = !appTokenRevealed">
+                        @(appTokenRevealed ? L["apps.appToken.hide"] : L["apps.appToken.reveal"])
+                    </button>
+                    <button class="btn-ghost btn-sm" @onclick="GenerateAppToken">@L["apps.appToken.rotate"]</button>
+                    <button class="btn-danger-sm" @onclick="ClearAppToken">@L["apps.appToken.remove"]</button>
+                }
+            </div>
+        </div>
+    </div>
+    </AuthorizeView>
+
     <div class="api-info card">
-        <div class="api-info-title">API Endpoints</div>
+        <div class="api-info-title">@L["apps.apiEndpoints"]</div>
         <div class="api-row">
             <span class="api-method">GET</span>
-            <code>@BaseUrl/api/apps/@app.Slug/update?version=1.0.0&amp;platform=windows&amp;arch=x64</code>
+            <code>@UpdateCheckUrl</code>
+            <button class="btn-copy" title="@L["common.copy"]" @onclick="() => Copy(UpdateCheckUrl)">⎘</button>
         </div>
         <div class="api-row">
             <span class="api-method">GET</span>
-            <code>@BaseUrl/api/apps/@app.Slug/tauri/latest.json</code>
+            <code>@TauriUrl</code>
+            <button class="btn-copy" title="@L["common.copy"]" @onclick="() => Copy(TauriUrl)">⎘</button>
         </div>
+        @if (copied) { <div style="font-size:12px;color:var(--success);margin-top:6px;">@L["common.copied"]</div> }
     </div>
 
     <div class="section-header">
-        <h2>Releases</h2>
-        <button class="btn-primary" @onclick="() => showReleaseForm = true">+ New Release</button>
+        <h2>@L["apps.releases"]</h2>
+        <AuthorizeView Roles="Admin,Manager">
+            <button class="btn-primary" @onclick="() => showReleaseForm = true">+ @L["apps.newRelease"]</button>
+        </AuthorizeView>
     </div>
 
     @if (showReleaseForm)
     {
         <div class="card">
-            <h3>New Release</h3>
+            <h3>@L["apps.newRelease"]</h3>
             <div class="form-row">
                 <div class="field">
-                    <label>Version</label>
+                    <label>@L["releases.version"]</label>
                     <input @bind="newVersion" placeholder="1.0.0" />
                 </div>
                 <div class="field">
-                    <label>Channel</label>
+                    <label>@L["releases.channel"]</label>
                     <select @bind="newChannel">
-                        <option value="Stable">Stable</option>
-                        <option value="Beta">Beta</option>
-                        <option value="Alpha">Alpha</option>
+                        <option value="Stable">@L["releases.channel.stable"]</option>
+                        <option value="Beta">@L["releases.channel.beta"]</option>
+                        <option value="Alpha">@L["releases.channel.alpha"]</option>
                     </select>
                 </div>
             </div>
             <div class="field">
-                <label>Release Notes</label>
-                <textarea @bind="newNotes" rows="3" placeholder="What changed in this version..."></textarea>
+                <label>@L["releases.notes"]</label>
+                <textarea @bind="newNotes" rows="3" placeholder="@L["releases.notesPlaceholder"]"></textarea>
+            </div>
+            <div class="field">
+                <label>@L["releases.minFromVersion"] <span class="hint">@L["releases.minFromVersion.hint"]</span></label>
+                <input @bind="newMinFromVersion" placeholder="e.g. 1.4.0" />
             </div>
             <div class="field">
                 <label class="checkbox-label">
-                    <input type="checkbox" @bind="newMandatory" /> Mandatory update
+                    <input type="checkbox" @bind="newMandatory" /> @L["releases.mandatory"]
                 </label>
             </div>
             @if (releaseError is not null) { <div class="error">@releaseError</div> }
             <div class="form-actions">
-                <button class="btn-primary" @onclick="CreateRelease">Create</button>
-                <button class="btn-ghost" @onclick="CancelReleaseForm">Cancel</button>
+                <button class="btn-primary" @onclick="CreateRelease">@L["common.create"]</button>
+                <button class="btn-ghost" @onclick="CancelReleaseForm">@L["common.cancel"]</button>
             </div>
         </div>
     }
 
     @if (!app.Releases.Any())
     {
-        <div class="empty-state"><p>No releases yet.</p></div>
+        <div class="empty-state"><p>@L["apps.releases.empty"]</p></div>
     }
     else
     {
         <table class="table">
             <thead>
                 <tr>
-                    <th>Version</th>
-                    <th>Channel</th>
-                    <th>Status</th>
-                    <th>Artifacts</th>
-                    <th>Published</th>
+                    <th>@L["releases.version"]</th>
+                    <th>@L["releases.channel"]</th>
+                    <th>@L["releases.status"]</th>
+                    <th>@L["releases.artifacts"]</th>
+                    <th>@L["releases.published"]</th>
                     <th></th>
                 </tr>
             </thead>
@@ -118,12 +186,20 @@ else
                 @foreach (var r in app.Releases.OrderByDescending(r => r.CreatedAt))
                 {
                     <tr>
-                        <td><strong>@r.Version</strong></td>
-                        <td>@r.Channel</td>
-                        <td><span class="badge @r.Status.ToString().ToLower()">@r.Status</span></td>
+                        <td>
+                            <strong>@r.Version</strong>
+                            @if (!string.IsNullOrEmpty(r.MinFromVersion))
+                            {
+                                <span class="badge warning" style="margin-left:6px;" title="@L["releases.minFromVersion"]: @r.MinFromVersion">
+                                    @L["releases.minFromVersion.badge"] @r.MinFromVersion+
+                                </span>
+                            }
+                        </td>
+                        <td>@L[$"releases.channel.{r.Channel.ToString().ToLower()}"]</td>
+                        <td><span class="badge @r.Status.ToString().ToLower()">@L[$"releases.status.{r.Status.ToString().ToLower()}"]</span></td>
                         <td>@r.Artifacts.Count</td>
                         <td>@(r.PublishedAt?.ToString("yyyy-MM-dd") ?? "—")</td>
-                        <td><a href="/releases/@r.Id">Manage →</a></td>
+                        <td><a href="/releases/@r.Id">@L["releases.manage"]</a></td>
                     </tr>
                 }
             </tbody>
@@ -134,11 +210,11 @@ else
     {
         <div class="modal-backdrop">
             <div class="modal-card">
-                <h2>Delete @app.Name?</h2>
-                <p>This will permanently delete the app and all its releases and artifacts.</p>
+                <h2>@L["apps.delete.confirm"] — @app.Name</h2>
+                <p>@L["apps.delete.warn"]</p>
                 <div class="form-actions">
-                    <button class="btn-danger" @onclick="DeleteApp">Yes, delete</button>
-                    <button class="btn-ghost" @onclick="() => confirmDelete = false">Cancel</button>
+                    <button class="btn-danger" @onclick="DeleteApp">@L["common.deleteYes"]</button>
+                    <button class="btn-ghost" @onclick="() => confirmDelete = false">@L["common.cancel"]</button>
                 </div>
             </div>
         </div>
@@ -149,37 +225,59 @@ else
     [Parameter] public string Slug { get; set; } = "";
 
     private App? app;
-    private string BaseUrl => Config["UpdateHub:BaseUrl"] ?? "https://your-updatehub-url";
+    private string BaseUrl       => Config["UpdateHub:BaseUrl"] ?? "https://your-updatehub-url";
+    private string UpdateCheckUrl => $"{BaseUrl}/api/apps/{app?.Slug}/update?version=1.0.0&platform=windows&arch=x64";
+    private string TauriUrl       => $"{BaseUrl}/api/apps/{app?.Slug}/tauri/latest.json";
 
     private bool showEditForm;
     private string editName = "";
     private string? editDescription;
+    private string? editWebhookUrl;
     private string? editError;
 
     private bool showReleaseForm;
     private string newVersion = "";
     private string newChannel = "Stable";
     private string? newNotes;
+    private string? newMinFromVersion;
     private bool newMandatory;
     private string? releaseError;
 
     private bool confirmDelete;
+    private bool copied;
+    private bool appTokenRevealed;
+    private DateTime? lastRotatedAt;
 
     protected override async Task OnParametersSetAsync() => await Load();
 
     private async Task Load()
     {
         app = await AdminSvc.GetAppAsync(Slug);
-        if (app is not null) { editName = app.Name; editDescription = app.Description; }
+        if (app is not null)
+        {
+            editName        = app.Name;
+            editDescription = app.Description;
+            editWebhookUrl  = app.WebhookUrl;
+            // Derive last-rotated time from audit log so we don't need a new
+            // DB column. Looks back at the most recent few hundred entries.
+            var entries = await AuditSvc.GetRecentAsync(500);
+            lastRotatedAt = entries
+                .Where(e => e.Action == "RotateAppCiToken" && e.EntityId == app.Id.ToString())
+                .Select(e => (DateTime?)e.OccurredAt)
+                .FirstOrDefault();
+        }
     }
 
     private async Task SaveEdit()
     {
         editError = null;
-        if (app is null || string.IsNullOrWhiteSpace(editName)) { editError = "Name is required."; return; }
+        if (app is null || string.IsNullOrWhiteSpace(editName)) { editError = L["apps.err.nameRequired"]; return; }
         try
         {
             await AdminSvc.UpdateAppAsync(app.Id, editName, editDescription);
+            // Webhook URL is admin-only; AdminService will refuse silently for non-admins.
+            try { await AdminSvc.SetAppWebhookUrlAsync(app.Id, editWebhookUrl); }
+            catch (UnauthorizedAccessException) { /* Manager edit — skip */ }
             showEditForm = false;
             await Load();
         }
@@ -190,11 +288,12 @@ else
     {
         releaseError = null;
         if (app is null) return;
-        if (string.IsNullOrWhiteSpace(newVersion)) { releaseError = "Version is required."; return; }
+        if (string.IsNullOrWhiteSpace(newVersion)) { releaseError = L["releases.err.version"]; return; }
         try
         {
             var ch = Enum.Parse<ReleaseChannel>(newChannel);
-            var release = await AdminSvc.CreateReleaseAsync(app.Id, newVersion, ch, newNotes, newMandatory);
+            var release = await AdminSvc.CreateReleaseAsync(
+                app.Id, newVersion, ch, newNotes, newMandatory, newMinFromVersion);
             Nav.NavigateTo($"/releases/{release.Id}");
         }
         catch (Exception ex) { releaseError = ex.Message; }
@@ -204,8 +303,33 @@ else
     {
         showReleaseForm = false;
         newVersion = "";
-        newNotes = releaseError = null;
+        newNotes = newMinFromVersion = releaseError = null;
         newMandatory = false;
+    }
+
+    private async Task Copy(string text)
+    {
+        await JS.InvokeVoidAsync("navigator.clipboard.writeText", text);
+        copied = true;
+        StateHasChanged();
+        await Task.Delay(2000);
+        copied = false;
+    }
+
+    private async Task GenerateAppToken()
+    {
+        if (app is null) return;
+        await AdminSvc.RotateAppCiTokenAsync(app.Id);
+        await Load();
+        appTokenRevealed = true;
+    }
+
+    private async Task ClearAppToken()
+    {
+        if (app is null) return;
+        await AdminSvc.ClearAppCiTokenAsync(app.Id);
+        await Load();
+        appTokenRevealed = false;
     }
 
     private void ConfirmDelete() => confirmDelete = true;

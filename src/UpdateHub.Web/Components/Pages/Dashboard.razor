@@ -2,37 +2,43 @@
 @attribute [Authorize]
 @rendermode InteractiveServer
 @inject AdminService AdminSvc
+@inject AuditService AuditSvc
+@inject UpdateHub.Web.Localization.Translator L
 
-<PageTitle>Dashboard — UpdateHub</PageTitle>
+<PageTitle>@L["dashboard.title"] — UpdateHub</PageTitle>
 
 <div class="page-header">
-    <h1>Dashboard</h1>
+    <h1>@L["dashboard.title"]</h1>
 </div>
 
 <div class="stats">
     <div class="stat-card">
         <span class="stat-value">@appCount</span>
-        <span class="stat-label">Applications</span>
+        <span class="stat-label">@L["dashboard.stat.applications"]</span>
     </div>
     <div class="stat-card">
         <span class="stat-value">@publishedCount</span>
-        <span class="stat-label">Published Releases</span>
+        <span class="stat-label">@L["dashboard.stat.published"]</span>
+    </div>
+    <div class="stat-card">
+        <span class="stat-value">@totalDownloads</span>
+        <span class="stat-label">@L["dashboard.stat.downloads"]</span>
     </div>
 </div>
 
 @if (apps is not null && apps.Count > 0)
 {
     <div class="section-header">
-        <h2>Applications</h2>
-        <a href="/apps" class="btn-sm btn-outline">View all</a>
+        <h2>@L["dashboard.applications"]</h2>
+        <a href="/apps" class="btn-sm btn-outline">@L["dashboard.viewAll"]</a>
     </div>
     <table class="table">
         <thead>
             <tr>
-                <th>Name</th>
-                <th>Slug</th>
-                <th>Latest (Stable)</th>
-                <th>Releases</th>
+                <th>@L["dashboard.col.name"]</th>
+                <th>@L["dashboard.col.slug"]</th>
+                <th>@L["dashboard.col.latest"]</th>
+                <th>@L["dashboard.col.releases"]</th>
                 <th></th>
             </tr>
         </thead>
@@ -48,7 +54,7 @@
                     <td><code>@app.Slug</code></td>
                     <td>@(latest?.Version ?? "—")</td>
                     <td>@app.Releases.Count</td>
-                    <td><a href="/apps/@app.Slug">Manage</a></td>
+                    <td><a href="/apps/@app.Slug">@L["dashboard.manage"]</a></td>
                 </tr>
             }
         </tbody>
@@ -57,19 +63,54 @@
 else if (apps is not null)
 {
     <div class="empty-state">
-        <p>No applications yet.</p>
-        <a href="/apps" class="btn-primary">Register your first app</a>
+        <p>@L["dashboard.empty"]</p>
+        <a href="/apps" class="btn-primary">@L["dashboard.empty.cta"]</a>
     </div>
+}
+
+@if (recentActivity is not null && recentActivity.Count > 0)
+{
+    <div class="section-header">
+        <h2>@L["dashboard.recent"]</h2>
+        <a href="/audit" class="btn-sm btn-outline">@L["dashboard.viewAll"]</a>
+    </div>
+    <table class="table">
+        <tbody>
+            @foreach (var e in recentActivity)
+            {
+                <tr>
+                    <td style="white-space:nowrap;color:var(--muted);font-size:12px;width:120px;">
+                        @FormatDate(e.OccurredAt)
+                    </td>
+                    <td><code>@e.Action</code></td>
+                    <td>@e.Actor</td>
+                    <td style="color:var(--muted);font-size:12px;">@(e.Details ?? "")</td>
+                </tr>
+            }
+        </tbody>
+    </table>
 }
 
 @code {
     private List<App>? apps;
     private int appCount;
     private int publishedCount;
+    private long totalDownloads;
+    private List<UpdateHub.Domain.Entities.AuditEntry>? recentActivity;
 
     protected override async Task OnInitializedAsync()
     {
         apps = await AdminSvc.GetAppsAsync();
-        (appCount, publishedCount) = await AdminSvc.GetStatsAsync();
+        (appCount, publishedCount, totalDownloads) = await AdminSvc.GetStatsAsync();
+        recentActivity = await AuditSvc.GetRecentAsync(15);
+    }
+
+    private static string FormatDate(DateTime dt)
+    {
+        var diff = DateTime.UtcNow - dt;
+        if (diff.TotalMinutes < 1)  return "just now";
+        if (diff.TotalHours   < 1)  return $"{(int)diff.TotalMinutes}m ago";
+        if (diff.TotalDays    < 1)  return $"{(int)diff.TotalHours}h ago";
+        return dt.ToString("yyyy-MM-dd HH:mm");
     }
 }

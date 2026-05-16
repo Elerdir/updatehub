@@ -13,7 +13,24 @@
       "Bash(dotnet sln *)",
       "Read(//mnt/**)",
       "Read(//e//**)",
-      "PowerShell(Get-ChildItem \"C:\\\\\", \"$env:LOCALAPPDATA\", \"$env:PROGRAMFILES\" -Recurse -Filter \"dotnet.exe\" -ErrorAction SilentlyContinue -Depth 3 | Select-Object -First 3 FullName)"
+      "PowerShell(Get-ChildItem \"C:\\\\\", \"$env:LOCALAPPDATA\", \"$env:PROGRAMFILES\" -Recurse -Filter \"dotnet.exe\" -ErrorAction SilentlyContinue -Depth 3 | Select-Object -First 3 FullName)",
+      "PowerShell(winget install --id Microsoft.DotNet.SDK.10 --silent --accept-package-agreements --accept-source-agreements 2>&1)",
+      "Bash(git add *)",
+      "Bash(git restore *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git push *)",
+      "Bash(Test-Path \"E:\\\\Projects\\\\updatehub\\\\CHANGELOG.md\")",
+      "Bash(dotnet build *)",
+      "Bash(dotnet test *)",
+      "Bash(dotnet ef *)",
+      "Bash(dotnet tool *)",
+      "Bash(dotnet restore *)",
+      "Bash(dotnet list *)",
+      "Bash(gh run *)",
+      "Bash(Get-ChildItem -Path \"E:/Projects/updatehub\" -Recurse -Filter \"*.dll\")",
+      "Bash(Unblock-File)",
+      "Bash(Write-Host \"Unblocked\")",
+      "Bash(docker exec *)"
     ]
   }
 }

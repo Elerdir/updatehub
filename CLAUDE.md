@@ -1,28 +1,33 @@
 # UpdateHub — Claude Code Context
 
-## Project
+## What this is
 
 Self-hosted update server for personal desktop applications (Tauri, Avalonia/.NET, etc.).
-Simple, no multi-tenant, no licensing — just apps, releases and artifacts.
+Clean Architecture, .NET 10, Blazor Server, SQLite, local file storage.
 
-## Stack
+## Architecture: 4 projects
 
-- **Backend + UI**: ASP.NET Core 10, Blazor Server
-- **Database**: SQLite via EF Core 9 (`EnsureCreated` — no migrations)
-- **Auth**: Cookie auth, single admin user, bcrypt password in config
-- **Storage**: Local filesystem, SHA-256 computed on upload
+| Project | Responsibility | Dependencies |
+|---|---|---|
+| `UpdateHub.Domain` | Entities + enums | none |
+| `UpdateHub.Application` | Services + interfaces + DTOs | Domain |
+| `UpdateHub.Infrastructure` | EF Core, repositories, file storage | Application + Domain |
+| `UpdateHub.Web` | Blazor UI + Minimal API + DI bootstrap | Application + Infrastructure |
+
+**Dependency rule**: inner layers never reference outer layers.
 
 ## Key files
 
 | File | Purpose |
 |---|---|
-| `src/UpdateHub.Web/Program.cs` | Bootstrap, DI, auth endpoints |
-| `src/UpdateHub.Web/Data/AppDbContext.cs` | EF Core context |
-| `src/UpdateHub.Web/Services/UpdateResolverService.cs` | Update check logic |
-| `src/UpdateHub.Web/Services/AdminService.cs` | All CRUD for the UI |
-| `src/UpdateHub.Web/Endpoints/PublicEndpoints.cs` | Public API (no auth) |
-| `src/UpdateHub.Web/Endpoints/CiEndpoints.cs` | CI upload endpoint |
-| `src/UpdateHub.Web/Components/Pages/` | Blazor pages |
+| `src/UpdateHub.Infrastructure/DependencyInjection.cs` | Registers all services — the only place with concrete types |
+| `src/UpdateHub.Application/Interfaces/` | Contracts between Application and Infrastructure |
+| `src/UpdateHub.Application/Services/AdminService.cs` | All admin CRUD, uses repository interfaces |
+| `src/UpdateHub.Application/Services/UpdateResolverService.cs` | Update check + Tauri manifest logic |
+| `src/UpdateHub.Infrastructure/Persistence/AppDbContext.cs` | EF Core with SQLite, `EnsureCreated` |
+| `src/UpdateHub.Web/Program.cs` | Bootstrap: calls `AddInfrastructure()`, registers auth |
+| `src/UpdateHub.Web/Endpoints/` | Minimal API — public + CI |
+| `src/UpdateHub.Web/Components/Pages/` | Blazor admin pages |
 
 ## Public API
 
@@ -30,7 +35,7 @@ Simple, no multi-tenant, no licensing — just apps, releases and artifacts.
 GET  /api/apps/{slug}/update?version=X&platform=windows&arch=x64
 GET  /api/apps/{slug}/tauri/latest.json
 GET  /api/downloads/{artifactId}
-POST /api/ci/apps/{slug}/releases   (X-UpdateHub-Token header)
+POST /api/ci/apps/{slug}/releases   (header: X-UpdateHub-Token)
 ```
 
 ## Running locally
@@ -38,30 +43,34 @@ POST /api/ci/apps/{slug}/releases   (X-UpdateHub-Token header)
 ```bash
 cd src/UpdateHub.Web
 dotnet run
-# http://localhost:5000 — admin/admin123 (from appsettings.Development.json)
+# http://localhost:5000 — admin / admin123
 ```
 
-## Config
+Dev hash in `appsettings.Development.json` is for password `admin123`.
 
-Everything via `appsettings.json` or environment variables:
+## Config keys
+
 - `UpdateHub:BaseUrl` — public URL (used in download links)
+- `UpdateHub:DatabasePath` — SQLite file path
+- `UpdateHub:StoragePath` — artifact directory
 - `UpdateHub:CiToken` — CI upload secret
-- `UpdateHub:Admin:Username` / `UpdateHub:Admin:PasswordHash`
+- `UpdateHub:Admin:Username` / `UpdateHub:Admin:PasswordHash` — bcrypt hash
 
-## Dev password hash
+## Adding new storage backend
 
-`appsettings.Development.json` has a pre-baked hash for `admin123`.
-To generate a new hash: use https://bcrypt.online/ with cost 12.
+1. Implement `IArtifactStorage` (Application layer interface)
+2. Register in `DependencyInjection.cs` instead of `LocalArtifactStorage`
+3. Nothing else needs changing — services depend on the interface
 
 ## DB schema changes
 
-Schema changes require deleting the `.db` file and restarting — `EnsureCreated` won't migrate.
-This is intentional for v1 simplicity. Add EF Core migrations if you need upgrades.
+Uses `EnsureCreated()` — schema is created once. To change schema:
+delete the `.db` file and restart. Add EF Core migrations if you need upgrade paths.
 
 ## Conventions
 
-- Services are scoped (per Blazor circuit)
-- `ArtifactStorageService` is singleton (stateless file ops)
-- Blazor pages use `@rendermode InteractiveServer`
-- Login page uses `EmptyLayout` (no sidebar)
-- No comments in code unless the WHY is non-obvious
+- Blazor pages `@rendermode InteractiveServer`
+- Login uses `EmptyLayout` (no sidebar)
+- Blazor pages inject Application services only — never Infrastructure types
+- No comments unless WHY is non-obvious
+- No `ArtifactStorageService` in Blazor — `AdminService` handles storage internally

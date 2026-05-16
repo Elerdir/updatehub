@@ -12,6 +12,18 @@ out/
 artifacts/
 artifacts-dev/
 
+# Runtime: Data Protection key ring (NEVER commit — secrets at rest)
+dp-keys/
+**/dp-keys/
+
+# Runtime: log files
+logs/
+**/logs/
+*.log
+
+# Runtime: local docker volume bind mounts
+data/
+
 # Production config (never commit secrets)
 appsettings.Production.json
 appsettings.production.json

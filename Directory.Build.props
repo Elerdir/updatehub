@@ -1,0 +1,11 @@
+<Project>
+
+  <!-- Shared version for all projects in the solution -->
+  <PropertyGroup>
+    <Version>1.1.0</Version>
+    <AssemblyVersion>1.1.0.0</AssemblyVersion>
+    <FileVersion>1.1.0.0</FileVersion>
+    <InformationalVersion>1.1.0</InformationalVersion>
+  </PropertyGroup>
+
+</Project>

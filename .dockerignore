@@ -1,0 +1,29 @@
+**/.git
+**/.vs
+**/.idea
+**/.vscode
+**/bin
+**/obj
+**/*.user
+**/*.suo
+**/node_modules
+
+# Test and dev-only projects
+tests/
+tools/
+sdk/
+docs/
+scripts/
+
+# CI/CD config not needed in image
+.github/
+
+# Misc
+*.md
+*.sln.DotSettings
+.editorconfig
+.gitattributes
+*.log
+logs/
+backups/
+data/
