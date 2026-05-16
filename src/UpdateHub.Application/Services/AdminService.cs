@@ -59,20 +59,36 @@ public class AdminService(
     }
 
     public async Task<Release> CreateReleaseAsync(
-        Guid appId, string version, ReleaseChannel channel, string? notes, bool mandatory)
+        Guid appId, string version, ReleaseChannel channel, string? notes, bool mandatory,
+        string? minFromVersion = null)
     {
         RoleGuard.Require(currentUser, Admin, Manager);
         var release = await releaseRepo.CreateAsync(new Release
         {
-            AppId        = appId,
-            Version      = version.Trim(),
-            Channel      = channel,
-            ReleaseNotes = string.IsNullOrWhiteSpace(notes) ? null : notes.Trim(),
-            IsMandatory  = mandatory
+            AppId          = appId,
+            Version        = version.Trim(),
+            Channel        = channel,
+            ReleaseNotes   = string.IsNullOrWhiteSpace(notes) ? null : notes.Trim(),
+            IsMandatory    = mandatory,
+            MinFromVersion = string.IsNullOrWhiteSpace(minFromVersion) ? null : minFromVersion.Trim(),
         });
         await audit.LogAsync("CreateRelease", entityType: "Release", entityId: release.Id.ToString(),
             details: $"{version.Trim()} / {channel}");
         return release;
+    }
+
+    public async Task SetMinFromVersionAsync(Guid releaseId, string? minFromVersion)
+    {
+        RoleGuard.Require(currentUser, Admin, Manager);
+        var r = await releaseRepo.GetByIdAsync(releaseId)
+            ?? throw new InvalidOperationException("Release not found");
+        var normalized = string.IsNullOrWhiteSpace(minFromVersion) ? null : minFromVersion.Trim();
+        if (r.MinFromVersion == normalized) return;
+        r.MinFromVersion = normalized;
+        await releaseRepo.UpdateAsync(r);
+        await audit.LogAsync("SetMinFromVersion", entityType: "Release",
+            entityId: releaseId.ToString(),
+            details: $"{r.Version} → {(normalized ?? "(none)")}");
     }
 
     public async Task PublishReleaseAsync(Guid releaseId)
@@ -164,7 +180,8 @@ public class AdminService(
     /// </summary>
     public async Task<(Release release, Artifact artifact)> IngestCiUploadAsync(
         App app, string version, ReleaseChannel channel, string? notes, bool mandatory,
-        Stream stream, string fileName, string platform, string arch, string? signature)
+        Stream stream, string fileName, string platform, string arch, string? signature,
+        string? minFromVersion = null)
     {
         var release = app.Releases.FirstOrDefault(r =>
             r.Version == version.Trim() && r.Channel == channel);
@@ -173,12 +190,13 @@ public class AdminService(
         {
             release = await releaseRepo.CreateAsync(new Release
             {
-                AppId        = app.Id,
-                Version      = version.Trim(),
-                Channel      = channel,
-                Status       = ReleaseStatus.Draft,
-                ReleaseNotes = string.IsNullOrWhiteSpace(notes) ? null : notes.Trim(),
-                IsMandatory  = mandatory
+                AppId          = app.Id,
+                Version        = version.Trim(),
+                Channel        = channel,
+                Status         = ReleaseStatus.Draft,
+                ReleaseNotes   = string.IsNullOrWhiteSpace(notes) ? null : notes.Trim(),
+                IsMandatory    = mandatory,
+                MinFromVersion = string.IsNullOrWhiteSpace(minFromVersion) ? null : minFromVersion.Trim(),
             });
             await audit.LogAsync("CreateRelease", actor: "ci", entityType: "Release",
                 entityId: release.Id.ToString(), details: $"{version.Trim()} / {channel}");

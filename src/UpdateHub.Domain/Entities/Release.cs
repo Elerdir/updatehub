@@ -12,6 +12,17 @@ public class Release
     public ReleaseStatus Status { get; set; } = ReleaseStatus.Draft;
     public string? ReleaseNotes { get; set; }
     public bool IsMandatory { get; set; }
+
+    /// <summary>
+    /// Optional lowest installed version that may upgrade DIRECTLY to this one.
+    /// When set and the client is below this threshold, the update resolver
+    /// returns the highest available stepping-stone release instead. Used to
+    /// enforce sequential upgrades when a release contains a one-way
+    /// migration (DB schema, config format, encryption keys, etc.).
+    /// Null = anyone can upgrade straight to this version.
+    /// </summary>
+    public string? MinFromVersion { get; set; }
+
     public DateTime? PublishedAt { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     public List<Artifact> Artifacts { get; set; } = [];

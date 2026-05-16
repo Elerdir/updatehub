@@ -149,6 +149,10 @@ else
                 <textarea @bind="newNotes" rows="3" placeholder="@L["releases.notesPlaceholder"]"></textarea>
             </div>
             <div class="field">
+                <label>@L["releases.minFromVersion"] <span class="hint">@L["releases.minFromVersion.hint"]</span></label>
+                <input @bind="newMinFromVersion" placeholder="e.g. 1.4.0" />
+            </div>
+            <div class="field">
                 <label class="checkbox-label">
                     <input type="checkbox" @bind="newMandatory" /> @L["releases.mandatory"]
                 </label>
@@ -182,7 +186,15 @@ else
                 @foreach (var r in app.Releases.OrderByDescending(r => r.CreatedAt))
                 {
                     <tr>
-                        <td><strong>@r.Version</strong></td>
+                        <td>
+                            <strong>@r.Version</strong>
+                            @if (!string.IsNullOrEmpty(r.MinFromVersion))
+                            {
+                                <span class="badge warning" style="margin-left:6px;" title="@L["releases.minFromVersion"]: @r.MinFromVersion">
+                                    @L["releases.minFromVersion.badge"] @r.MinFromVersion+
+                                </span>
+                            }
+                        </td>
                         <td>@L[$"releases.channel.{r.Channel.ToString().ToLower()}"]</td>
                         <td><span class="badge @r.Status.ToString().ToLower()">@L[$"releases.status.{r.Status.ToString().ToLower()}"]</span></td>
                         <td>@r.Artifacts.Count</td>
@@ -227,6 +239,7 @@ else
     private string newVersion = "";
     private string newChannel = "Stable";
     private string? newNotes;
+    private string? newMinFromVersion;
     private bool newMandatory;
     private string? releaseError;
 
@@ -279,7 +292,8 @@ else
         try
         {
             var ch = Enum.Parse<ReleaseChannel>(newChannel);
-            var release = await AdminSvc.CreateReleaseAsync(app.Id, newVersion, ch, newNotes, newMandatory);
+            var release = await AdminSvc.CreateReleaseAsync(
+                app.Id, newVersion, ch, newNotes, newMandatory, newMinFromVersion);
             Nav.NavigateTo($"/releases/{release.Id}");
         }
         catch (Exception ex) { releaseError = ex.Message; }
@@ -289,7 +303,7 @@ else
     {
         showReleaseForm = false;
         newVersion = "";
-        newNotes = releaseError = null;
+        newNotes = newMinFromVersion = releaseError = null;
         newMandatory = false;
     }
 

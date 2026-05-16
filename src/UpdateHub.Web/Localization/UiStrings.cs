@@ -318,6 +318,10 @@ public static class UiStrings
             ["releases.channel.beta"]     = "Beta",
             ["releases.channel.alpha"]    = "Alpha",
             ["releases.mandatoryBadge"]   = "Mandatory",
+            ["releases.minFromVersion"]   = "Minimum version to upgrade from",
+            ["releases.minFromVersion.hint"]  = "(optional — clients on a lower version are stepped through an intermediate release)",
+            ["releases.minFromVersion.none"]  = "any",
+            ["releases.minFromVersion.badge"] = "≥",
 
             // Security page
             ["security.blockedIps"]       = "Blocked IPs",
@@ -647,6 +651,10 @@ public static class UiStrings
             ["releases.channel.beta"]     = "Beta",
             ["releases.channel.alpha"]    = "Alpha",
             ["releases.mandatoryBadge"]   = "Povinné",
+            ["releases.minFromVersion"]   = "Minimální verze pro přechod",
+            ["releases.minFromVersion.hint"]  = "(volitelné — klienti na nižší verzi projdou nejdřív přes mezikrok)",
+            ["releases.minFromVersion.none"]  = "jakákoliv",
+            ["releases.minFromVersion.badge"] = "≥",
 
             // Security page
             ["security.blockedIps"]       = "Blokované IP",
@@ -976,6 +984,10 @@ public static class UiStrings
             ["releases.channel.beta"]     = "Beta",
             ["releases.channel.alpha"]    = "Alpha",
             ["releases.mandatoryBadge"]   = "Pflicht",
+            ["releases.minFromVersion"]   = "Mindestversion für Upgrade",
+            ["releases.minFromVersion.hint"]  = "(optional — Clients auf einer niedrigeren Version werden über eine Zwischenversion geleitet)",
+            ["releases.minFromVersion.none"]  = "beliebig",
+            ["releases.minFromVersion.badge"] = "≥",
 
             // Security page
             ["security.blockedIps"]       = "Gesperrte IPs",

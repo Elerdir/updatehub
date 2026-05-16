@@ -16,6 +16,18 @@ public class UpdateResolverServiceTests
     public UpdateResolverServiceTests()
     {
         _sut = new UpdateResolverService(_releases, BaseUrl);
+
+        // The resolver now fetches the full published list to compute the best
+        // stepping-stone. Existing tests only mock GetLatestPublishedAsync, so
+        // we mirror that single value into the all-published call.
+        _releases.GetAllPublishedAsync(Arg.Any<string>(), Arg.Any<ReleaseChannel>())
+            .Returns(ci =>
+            {
+                var slug = ci.Arg<string>();
+                var ch   = ci.Arg<ReleaseChannel>();
+                var r    = _releases.GetLatestPublishedAsync(slug, ch).GetAwaiter().GetResult();
+                return r is null ? [] : new List<Release> { r };
+            });
     }
 
     // ── CheckUpdateAsync ──────────────────────────────────────────────────────

@@ -24,6 +24,16 @@ public class ReleaseRepository(AppDbContext db) : IReleaseRepository
           .OrderByDescending(r => r.PublishedAt)
           .FirstOrDefaultAsync();
 
+    public Task<List<Release>> GetAllPublishedAsync(string appSlug, ReleaseChannel channel) =>
+        db.Releases
+          .Include(r => r.Artifacts)
+          .Include(r => r.App)
+          .Where(r => r.App.Slug == appSlug
+                   && r.Status == ReleaseStatus.Published
+                   && r.Channel == channel)
+          .OrderByDescending(r => r.PublishedAt)
+          .ToListAsync();
+
     public Task<List<Release>> GetPublishedByAppChannelAsync(
         Guid appId, ReleaseChannel channel, Guid exceptId) =>
         db.Releases

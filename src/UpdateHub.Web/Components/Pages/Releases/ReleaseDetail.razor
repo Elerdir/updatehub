@@ -41,6 +41,32 @@ else
         </div>
     </div>
 
+    <AuthorizeView Roles="Admin,Manager">
+    <div class="card" style="margin-bottom:16px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
+            <div>
+                <strong>@L["releases.minFromVersion"]</strong>
+                <span style="margin-left:8px;font-size:13px;color:var(--muted);">@L["releases.minFromVersion.hint"]</span>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center;">
+                @if (editingMinFrom)
+                {
+                    <input @bind="minFromInput" placeholder="e.g. 1.4.0" style="width:140px;padding:6px 10px;" />
+                    <button class="btn-primary btn-sm" @onclick="SaveMinFrom">@L["common.save"]</button>
+                    <button class="btn-ghost btn-sm" @onclick="() => editingMinFrom = false">@L["common.cancel"]</button>
+                }
+                else
+                {
+                    <code style="font-size:12px;padding:4px 8px;background:var(--surface2);border-radius:4px;">
+                        @(string.IsNullOrEmpty(release.MinFromVersion) ? L["releases.minFromVersion.none"] : release.MinFromVersion)
+                    </code>
+                    <button class="btn-ghost btn-sm" @onclick="StartEditMinFrom">@L["common.edit"]</button>
+                }
+            </div>
+        </div>
+    </div>
+    </AuthorizeView>
+
     @if (!string.IsNullOrWhiteSpace(release.ReleaseNotes))
     {
         <div class="release-notes card">
@@ -172,6 +198,8 @@ else
     private bool uploading;
     private string? uploadError;
     private bool confirmDelete;
+    private bool editingMinFrom;
+    private string? minFromInput;
 
     protected override async Task OnParametersSetAsync() => await Load();
 
@@ -223,6 +251,20 @@ else
     }
 
     private void ConfirmDelete() => confirmDelete = true;
+
+    private void StartEditMinFrom()
+    {
+        minFromInput   = release?.MinFromVersion;
+        editingMinFrom = true;
+    }
+
+    private async Task SaveMinFrom()
+    {
+        if (release is null) return;
+        await AdminSvc.SetMinFromVersionAsync(release.Id, minFromInput);
+        editingMinFrom = false;
+        await Load();
+    }
 
     private async Task DeleteRelease()
     {

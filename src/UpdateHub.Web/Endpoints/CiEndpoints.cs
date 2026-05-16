@@ -64,6 +64,7 @@ public static class CiEndpoints
             var notes     = form["release_notes"].ToString();
             var sig       = form["signature"].ToString();
             var mandatory = form["is_mandatory"] == "true";
+            var minFrom   = form["min_from_version"].ToString();
 
             if (file is null || string.IsNullOrWhiteSpace(version) || string.IsNullOrWhiteSpace(platform))
                 return Results.BadRequest(new { error = "file, version and platform are required" });
@@ -81,7 +82,7 @@ public static class CiEndpoints
             await using var stream = file.OpenReadStream();
             var (release, artifact) = await admin.IngestCiUploadAsync(
                 appEntity, version, ch, notes, mandatory,
-                stream, file.FileName, platform, arch, sig);
+                stream, file.FileName, platform, arch, sig, minFrom);
 
             return Results.Ok(new
             {
