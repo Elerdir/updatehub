@@ -45,6 +45,12 @@ else
                 <label>@L["common.description"]</label>
                 <textarea @bind="editDescription" rows="2"></textarea>
             </div>
+            <AuthorizeView Roles="Admin" Context="adminCtx">
+                <div class="field">
+                    <label>@L["apps.webhookUrl"] <span class="hint">@L["apps.webhookUrl.hint"]</span></label>
+                    <input @bind="editWebhookUrl" placeholder="https://hooks.slack.com/services/…" />
+                </div>
+            </AuthorizeView>
             @if (editError is not null) { <div class="error">@editError</div> }
             <div class="form-actions">
                 <button class="btn-primary" @onclick="SaveEdit">@L["common.save"]</button>
@@ -214,6 +220,7 @@ else
     private bool showEditForm;
     private string editName = "";
     private string? editDescription;
+    private string? editWebhookUrl;
     private string? editError;
 
     private bool showReleaseForm;
@@ -235,8 +242,9 @@ else
         app = await AdminSvc.GetAppAsync(Slug);
         if (app is not null)
         {
-            editName = app.Name;
+            editName        = app.Name;
             editDescription = app.Description;
+            editWebhookUrl  = app.WebhookUrl;
             // Derive last-rotated time from audit log so we don't need a new
             // DB column. Looks back at the most recent few hundred entries.
             var entries = await AuditSvc.GetRecentAsync(500);
@@ -254,6 +262,9 @@ else
         try
         {
             await AdminSvc.UpdateAppAsync(app.Id, editName, editDescription);
+            // Webhook URL is admin-only; AdminService will refuse silently for non-admins.
+            try { await AdminSvc.SetAppWebhookUrlAsync(app.Id, editWebhookUrl); }
+            catch (UnauthorizedAccessException) { /* Manager edit — skip */ }
             showEditForm = false;
             await Load();
         }

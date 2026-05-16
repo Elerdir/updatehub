@@ -10,6 +10,29 @@ public class UpdateResolverService(
     IReleaseRepository releases,
     string baseUrl)
 {
+    /// <summary>
+    /// Returns the latest published release for a given app + channel together
+    /// with a fully resolved download URL for the best-matching artifact, or
+    /// null when nothing is published. Used by the format-specific endpoints
+    /// (electron-updater YAML, Sparkle XML, Velopack JSON) that all need the
+    /// same data and differ only in the wire format.
+    /// </summary>
+    public async Task<(Release Release, Artifact Artifact, string Url)?>
+        GetLatestForFormatAsync(string appSlug, string platform, string arch, string? channel)
+    {
+        var release = await releases.GetLatestPublishedAsync(appSlug, ParseChannel(channel));
+        if (release is null) return null;
+
+        var artifact = release.Artifacts
+            .Where(a => a.Platform.Equals(platform, StringComparison.OrdinalIgnoreCase)
+                     && a.Architecture.Equals(arch, StringComparison.OrdinalIgnoreCase))
+            .OrderByDescending(a => a.CreatedAt)
+            .FirstOrDefault();
+
+        if (artifact is null) return null;
+        return (release, artifact, DownloadUrl(artifact.Id));
+    }
+
     public async Task<TauriManifest?> GetTauriManifestAsync(string appSlug, string? channel)
     {
         var release = await releases.GetLatestPublishedAsync(appSlug, ParseChannel(channel));

@@ -52,6 +52,13 @@
     @if (_rotateMsg is not null) { <div class="info" style="margin-top:8px;">@_rotateMsg</div> }
 </div>
 
+@* ── Backup ──────────────────────────────────────────────────────────────── *@
+<div class="card" style="margin-bottom:24px;">
+    <h3>@L["settings.backup"]</h3>
+    <p style="color:var(--muted);font-size:13px;margin-bottom:12px;">@L["settings.backup.hint"]</p>
+    <a class="btn-primary" href="/admin/backup.zip" download>@L["settings.backup.download"]</a>
+</div>
+
 @* ── Webhook signing ─────────────────────────────────────────────────────── *@
 <div class="card" style="margin-bottom:24px;">
     <h3>@L["settings.webhook"]</h3>

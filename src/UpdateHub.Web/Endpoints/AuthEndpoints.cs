@@ -88,6 +88,12 @@ public static class AuthEndpoints
             var totp  = new Totp(Base32Encoding.ToBytes(secret));
             var valid = totp.VerifyTotp(DateTime.UtcNow, code, out _, new VerificationWindow(1, 1));
 
+            // Fall back to single-use backup code when the authenticator code didn't match.
+            if (!valid && code.Length > 6 && await userSvc.ConsumeBackupCodeAsync(userId, code))
+            {
+                valid = true;
+            }
+
             if (!valid)
             {
                 await audit.LogAsync("LoginFailed2FA", actor: user.Username, ip: ip);

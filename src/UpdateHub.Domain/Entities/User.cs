@@ -40,6 +40,13 @@ public class User
     public bool TotpEnabled { get; set; }
 
     /// <summary>
+    /// Comma-separated SHA-256 hex hashes of UNUSED single-use 2FA backup codes.
+    /// Codes themselves are high-entropy (10 char alphanumeric ≈ 60 bits), so an
+    /// unsalted hash is safe — a rainbow table is infeasible at that size.
+    /// </summary>
+    public string? BackupCodes { get; set; }
+
+    /// <summary>
     /// Optional contact email for account-event notifications (account created,
     /// password reset). When null the user is not notified — admin still gets
     /// the global notification at <c>Smtp:To</c>. We never send the actual

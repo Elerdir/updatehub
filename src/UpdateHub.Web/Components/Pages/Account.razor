@@ -148,6 +148,28 @@
     @if (_totpEnabled)
     {
         <div class="badge published" style="margin-bottom:16px;">@L["account.totp.enabled"]</div>
+
+        @* Backup-code status + freshly-generated codes *@
+        <div style="margin-bottom:16px;font-size:13px;">
+            <span>@L["account.totp.backupCodes.remaining"]: <strong>@_backupRemaining / 10</strong></span>
+            <button class="btn-ghost btn-sm" style="margin-left:8px;" @onclick="RegenerateBackupCodes">
+                @L["account.totp.backupCodes.regenerate"]
+            </button>
+            @if (_backupRemaining <= 2 && _newBackupCodes is null)
+            {
+                <div class="info" style="margin-top:6px;">@L["account.totp.backupCodes.lowWarning"]</div>
+            }
+        </div>
+        @if (_newBackupCodes is not null)
+        {
+            <div class="card" style="background:var(--surface2);margin-bottom:16px;">
+                <strong>@L["account.totp.backupCodes.shownOnce"]</strong>
+                <div style="margin-top:8px;font-size:13px;color:var(--muted);">@L["account.totp.backupCodes.shownOnce.hint"]</div>
+                <pre style="margin-top:10px;padding:12px;background:var(--bg);border-radius:6px;font-family:'Cascadia Code',monospace;font-size:14px;">@string.Join("\n", _newBackupCodes)</pre>
+                <button class="btn-ghost btn-sm" @onclick="() => _newBackupCodes = null">@L["common.cancel"]</button>
+            </div>
+        }
+
         @if (_disableConfirm)
         {
             <div class="field">
@@ -211,6 +233,8 @@
     private string?  _newTokenValue;
     private string?  _tokenError;
     private string?  _sessionMsg;
+    private int      _backupRemaining;
+    private List<string>? _newBackupCodes;
 
     protected override async Task OnInitializedAsync()
     {
@@ -219,8 +243,15 @@
         if (Guid.TryParse(idClaim, out var id)) _userId = id;
         _username = state.User.Identity?.Name ?? "";
 
-        _totpEnabled = await UserSvc.IsTotpEnabledAsync(_userId);
-        _tokens      = await UserSvc.GetTokensAsync(_userId);
+        _totpEnabled     = await UserSvc.IsTotpEnabledAsync(_userId);
+        _backupRemaining = await UserSvc.GetUnusedBackupCodeCountAsync(_userId);
+        _tokens          = await UserSvc.GetTokensAsync(_userId);
+    }
+
+    private async Task RegenerateBackupCodes()
+    {
+        _newBackupCodes = await UserSvc.RegenerateBackupCodesAsync(_userId);
+        _backupRemaining = _newBackupCodes.Count;
     }
 
     private async Task CreateToken()
@@ -289,9 +320,10 @@
         var valid = totp.VerifyTotp(DateTime.UtcNow, _totpConfirmCode.Trim(), out _, new VerificationWindow(1, 1));
         if (!valid) { _totpError = L["login.totp.invalid"]; return; }
 
-        await UserSvc.EnableTotpAsync(_userId, _pendingSecret);
-        _totpEnabled    = true;
-        _pendingSecret  = _totpUri = _totpConfirmCode = null;
+        _newBackupCodes  = await UserSvc.EnableTotpAsync(_userId, _pendingSecret);
+        _backupRemaining = _newBackupCodes.Count;
+        _totpEnabled     = true;
+        _pendingSecret   = _totpUri = _totpConfirmCode = null;
     }
 
     private async Task Disable2FA()

@@ -11,12 +11,18 @@ namespace UpdateHub.Infrastructure;
 public class WebhookService(
     IHttpClientFactory httpFactory,
     IConfiguration     config,
-    SettingsService    settings)
+    SettingsService    settings,
+    IAppRepository     apps)
     : IWebhookService
 {
     public async Task NotifyPublishedAsync(string appSlug, string version, string? notes, string channel)
     {
-        var url = config["UpdateHub:WebhookUrl"];
+        // Per-app URL beats the global one — admins can route different apps
+        // to different Slack/Discord channels by setting WebhookUrl on the app.
+        var app = await apps.GetBySlugAsync(appSlug);
+        var url = !string.IsNullOrWhiteSpace(app?.WebhookUrl)
+            ? app!.WebhookUrl
+            : config["UpdateHub:WebhookUrl"];
         if (string.IsNullOrWhiteSpace(url)) return;
 
         var payload = new

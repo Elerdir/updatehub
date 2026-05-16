@@ -288,6 +288,20 @@ public class AdminService(
         return app.CiToken;
     }
 
+    public async Task SetAppWebhookUrlAsync(Guid appId, string? url)
+    {
+        RoleGuard.Require(currentUser, Admin);
+        var app = await appRepo.GetByIdAsync(appId)
+            ?? throw new InvalidOperationException("App not found");
+        var normalized = string.IsNullOrWhiteSpace(url) ? null : url.Trim();
+        if (app.WebhookUrl == normalized) return;
+        app.WebhookUrl = normalized;
+        await appRepo.UpdateAsync(app);
+        await audit.LogAsync("SetAppWebhookUrl", entityType: "App",
+            entityId: appId.ToString(),
+            details: $"{app.Slug} → {(normalized ?? "(none)")}");
+    }
+
     public async Task ClearAppCiTokenAsync(Guid appId)
     {
         RoleGuard.Require(currentUser, Admin);

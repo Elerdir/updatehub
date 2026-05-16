@@ -335,16 +335,69 @@ public class UserService(
     public Task<bool> IsTotpEnabledAsync(Guid userId) =>
         users.GetByIdAsync(userId).ContinueWith(t => t.Result is { TotpEnabled: true });
 
-    public async Task EnableTotpAsync(Guid userId, string secret)
+    /// <summary>
+    /// Activates TOTP and generates a fresh set of 10 single-use backup codes.
+    /// The plaintext codes are returned only here — only hashes are persisted.
+    /// </summary>
+    public async Task<List<string>> EnableTotpAsync(Guid userId, string secret)
     {
         RequireSelf(userId);
         var user = await users.GetByIdAsync(userId)
             ?? throw new InvalidOperationException("User not found.");
         user.TotpSecret  = protector.Protect(secret);
         user.TotpEnabled = true;
+
+        var codes = GenerateBackupCodes();
+        user.BackupCodes = string.Join(",", codes.Select(HashToken));
         await users.UpdateAsync(user);
         await audit.LogAsync("EnableTotp", actor: user.Username,
             entityType: "User", entityId: userId.ToString());
+        return codes;
+    }
+
+    /// <summary>Replaces the user's backup codes and returns the new plaintext set.</summary>
+    public async Task<List<string>> RegenerateBackupCodesAsync(Guid userId)
+    {
+        RequireSelf(userId);
+        var user = await users.GetByIdAsync(userId)
+            ?? throw new InvalidOperationException("User not found.");
+        if (!user.TotpEnabled) throw new InvalidOperationException("2FA is not enabled.");
+
+        var codes = GenerateBackupCodes();
+        user.BackupCodes = string.Join(",", codes.Select(HashToken));
+        await users.UpdateAsync(user);
+        await audit.LogAsync("RegenerateBackupCodes", actor: user.Username,
+            entityType: "User", entityId: userId.ToString());
+        return codes;
+    }
+
+    public async Task<int> GetUnusedBackupCodeCountAsync(Guid userId)
+    {
+        var user = await users.GetByIdAsync(userId);
+        if (user is null || string.IsNullOrEmpty(user.BackupCodes)) return 0;
+        return user.BackupCodes.Split(',', StringSplitOptions.RemoveEmptyEntries).Length;
+    }
+
+    /// <summary>
+    /// Tries to consume one backup code as a 2FA substitute. Returns true and
+    /// removes the code from the unused set on a match; false otherwise. Used
+    /// by the TOTP login endpoint when the authenticator code path fails.
+    /// </summary>
+    public async Task<bool> ConsumeBackupCodeAsync(Guid userId, string rawCode)
+    {
+        var user = await users.GetByIdAsync(userId);
+        if (user is null || string.IsNullOrEmpty(user.BackupCodes)) return false;
+
+        var target = HashToken(rawCode.Replace(" ", "").Replace("-", "").Trim().ToUpperInvariant());
+        var hashes = user.BackupCodes.Split(',', StringSplitOptions.RemoveEmptyEntries).ToList();
+        if (!hashes.Remove(target)) return false;
+
+        user.BackupCodes = string.Join(",", hashes);
+        await users.UpdateAsync(user);
+        await audit.LogAsync("ConsumeBackupCode", actor: user.Username,
+            entityType: "User", entityId: userId.ToString(),
+            details: $"{hashes.Count} codes remaining");
+        return true;
     }
 
     public async Task DisableTotpAsync(Guid userId)
@@ -354,9 +407,26 @@ public class UserService(
             ?? throw new InvalidOperationException("User not found.");
         user.TotpSecret  = null;
         user.TotpEnabled = false;
+        user.BackupCodes = null;
         await users.UpdateAsync(user);
         await audit.LogAsync("DisableTotp", actor: user.Username,
             entityType: "User", entityId: userId.ToString());
+    }
+
+    private static List<string> GenerateBackupCodes(int n = 10, int length = 10)
+    {
+        // Crockford-style alphabet (no 0/O/1/I) to avoid handwriting ambiguity.
+        const string alphabet = "ABCDEFGHJKMNPQRSTVWXYZ23456789";
+        var bytes = RandomNumberGenerator.GetBytes(n * length);
+        var codes = new List<string>(n);
+        for (var i = 0; i < n; i++)
+        {
+            var chars = new char[length];
+            for (var j = 0; j < length; j++)
+                chars[j] = alphabet[bytes[i * length + j] % alphabet.Length];
+            codes.Add(new string(chars));
+        }
+        return codes;
     }
 
     // ── Personal access tokens (per-user bearer tokens) ───────────────────

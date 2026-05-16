@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.IO.Compression;
 using System.Text;
 using UpdateHub.Application.Services;
 
@@ -33,6 +34,62 @@ public static class AdminEndpoints
                 $"attachment; filename=\"updatehub-audit-{DateTime.UtcNow:yyyyMMdd-HHmmss}.csv\"";
             return Results.Text(sb.ToString(), "text/csv; charset=utf-8");
         }).RequireAuthorization();
+
+        app.MapGet("/admin/backup.zip", (HttpContext ctx, IConfiguration cfg, AuditService audit) =>
+        {
+            // Snapshot of the metadata layer — the DB and the data-protection
+            // key ring. Artifact files (artifacts/) are NOT included; they can
+            // be huge and are easy to back up separately at the volume layer.
+            if (!ctx.User.IsInRole("Admin"))
+                return Results.StatusCode(StatusCodes.Status403Forbidden);
+
+            var dbPath  = cfg["UpdateHub:DatabasePath"] ?? "updatehub.db";
+            var dbAbs   = Path.GetFullPath(dbPath);
+            var dbDir   = Path.GetDirectoryName(dbAbs) ?? ".";
+            var keysDir = cfg["UpdateHub:DataProtectionKeysPath"]
+                ?? Path.Combine(dbDir, "dp-keys");
+
+            // Build the zip in-memory. The metadata footprint is small enough
+            // (a few MB of DB + a handful of XML key files), so this avoids
+            // littering the filesystem with temp files.
+            var stamp = DateTime.UtcNow.ToString("yyyyMMdd-HHmmss");
+            byte[] bytes;
+            using (var ms = new MemoryStream())
+            {
+                using (var zip = new ZipArchive(ms, ZipArchiveMode.Create, leaveOpen: true))
+                {
+                    AddFile(zip, dbAbs,                   "updatehub.db");
+                    AddFile(zip, dbAbs + "-shm",          "updatehub.db-shm"); // SQLite WAL companions
+                    AddFile(zip, dbAbs + "-wal",          "updatehub.db-wal");
+                    if (Directory.Exists(keysDir))
+                    {
+                        foreach (var f in Directory.EnumerateFiles(keysDir))
+                            AddFile(zip, f, "dp-keys/" + Path.GetFileName(f));
+                    }
+                    var readme = zip.CreateEntry("README.txt");
+                    using var w = new StreamWriter(readme.Open());
+                    w.WriteLine($"UpdateHub backup taken {DateTime.UtcNow:u}");
+                    w.WriteLine("Contains: SQLite database + Data Protection key ring.");
+                    w.WriteLine("Restore: stop the container, unzip into /app/data, restart.");
+                    w.WriteLine("Artifact files (artifacts/) are NOT included — back them up separately.");
+                }
+                bytes = ms.ToArray();
+            }
+
+            _ = audit.LogAsync("ExportBackup", actor: ctx.User.Identity?.Name ?? "?",
+                entityType: "Backup", details: $"{bytes.Length} bytes");
+
+            return Results.File(bytes, "application/zip", $"updatehub-backup-{stamp}.zip");
+        }).RequireAuthorization();
+    }
+
+    private static void AddFile(ZipArchive zip, string sourcePath, string entryName)
+    {
+        if (!File.Exists(sourcePath)) return;
+        var entry = zip.CreateEntry(entryName, CompressionLevel.Optimal);
+        using var src = File.OpenRead(sourcePath);
+        using var dst = entry.Open();
+        src.CopyTo(dst);
     }
 
     private static string Csv(string field)
