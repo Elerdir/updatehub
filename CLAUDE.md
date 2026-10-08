@@ -34,6 +34,7 @@ Clean Architecture, .NET 10, Blazor Server, SQLite, local file storage.
 ```
 GET  /api/apps/{slug}/update?version=X&platform=windows&arch=x64
 GET  /api/apps/{slug}/tauri/latest.json
+GET  /api/apps/{slug}/latest?channel=stable   (all artifacts of the newest release — for download pages)
 GET  /api/downloads/{artifactId}
 POST /api/ci/apps/{slug}/releases   (header: X-UpdateHub-Token)
 ```

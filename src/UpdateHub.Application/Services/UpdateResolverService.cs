@@ -33,6 +33,34 @@ public class UpdateResolverService(
         return (release, artifact, DownloadUrl(artifact.Id));
     }
 
+    /// <summary>
+    /// Latest published release with all its artifacts (every platform and
+    /// format), or null when nothing is published on the channel. Artifacts are
+    /// ordered platform → architecture → file name so consumers get a stable list.
+    /// </summary>
+    public async Task<LatestRelease?> GetLatestReleaseAsync(string appSlug, string? channel)
+    {
+        var release = await releases.GetLatestPublishedAsync(appSlug, ParseChannel(channel));
+        if (release is null) return null;
+
+        var artifacts = release.Artifacts
+            .OrderBy(a => a.Platform, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(a => a.Architecture, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(a => a.FileName, StringComparer.OrdinalIgnoreCase)
+            .Select(a => new LatestArtifact(
+                a.Platform, a.Architecture, Path.GetFileName(a.FileName), a.FileSizeBytes, a.Sha256, DownloadUrl(a.Id)))
+            .ToList();
+
+        return new LatestRelease(
+            release.App?.Slug ?? appSlug,
+            release.App?.Name ?? appSlug,
+            release.Version,
+            release.Channel.ToString().ToLowerInvariant(),
+            release.PublishedAt,
+            release.ReleaseNotes,
+            artifacts);
+    }
+
     public async Task<TauriManifest?> GetTauriManifestAsync(string appSlug, string? channel)
     {
         var release = await releases.GetLatestPublishedAsync(appSlug, ParseChannel(channel));

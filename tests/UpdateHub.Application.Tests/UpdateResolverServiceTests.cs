@@ -298,6 +298,38 @@ public class UpdateResolverServiceTests
 
     // ── Helpers ───────────────────────────────────────────────────────────────
 
+    // ── GetLatestReleaseAsync ─────────────────────────────────────────────────
+
+    [Fact]
+    public async Task GetLatestReleaseAsync_ReturnsNull_WhenNothingPublished()
+    {
+        _releases.GetLatestPublishedAsync(Arg.Any<string>(), Arg.Any<ReleaseChannel>())
+                 .Returns((Release?)null);
+
+        Assert.Null(await _sut.GetLatestReleaseAsync("my-app", null));
+    }
+
+    [Fact]
+    public async Task GetLatestReleaseAsync_ListsAllArtifactsSortedWithDownloadUrls()
+    {
+        var macArm = new Artifact { Platform = "macos",   Architecture = "arm64", FileName = "App_aarch64.dmg", FileSizeBytes = 20, Sha256 = "b" };
+        var winExe = new Artifact { Platform = "windows", Architecture = "x64",   FileName = "App_x64-setup.exe", FileSizeBytes = 10, Sha256 = "a" };
+        var macX64 = new Artifact { Platform = "macos",   Architecture = "x64",   FileName = "App_x64.dmg", FileSizeBytes = 30, Sha256 = "c" };
+        var release = PublishedRelease("1.2.0", winExe, macX64, macArm);
+        release.ReleaseNotes = "Notes";
+        _releases.GetLatestPublishedAsync("my-app", ReleaseChannel.Beta).Returns(release);
+
+        var latest = await _sut.GetLatestReleaseAsync("my-app", "beta");
+
+        Assert.NotNull(latest);
+        Assert.Equal("My App", latest!.Name);
+        Assert.Equal("1.2.0", latest.Version);
+        Assert.Equal("Notes", latest.ReleaseNotes);
+        Assert.Equal(["App_aarch64.dmg", "App_x64.dmg", "App_x64-setup.exe"], latest.Artifacts.Select(a => a.FileName));
+        Assert.Equal($"{BaseUrl}/api/downloads/{winExe.Id}", latest.Artifacts[2].Url);
+        Assert.Equal(10, latest.Artifacts[2].SizeBytes);
+    }
+
     private static Release PublishedRelease(string version, params Artifact[] artifacts)
     {
         var app = new App { Slug = "my-app", Name = "My App" };
