@@ -55,6 +55,7 @@ Dev hash in `appsettings.Development.json` is for password `admin123`.
 - `UpdateHub:StoragePath` — artifact directory
 - `UpdateHub:CiToken` — CI upload secret
 - `UpdateHub:Admin:Username` / `UpdateHub:Admin:PasswordHash` — bcrypt hash
+- `UpdateHub:TrustedProxies` — CIDR list of reverse proxies trusted for X-Forwarded-* (default loopback + Docker bridge)
 
 ## Adding new storage backend
 
