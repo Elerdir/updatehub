@@ -21,6 +21,11 @@ services:
       # ── CI upload token (override in DB via Settings page after first run) ──
       - UpdateHub__CiToken=${UPDATEHUB_CI_TOKEN:-CHANGE_ME_RANDOM_TOKEN}
 
+      # ── Optional: reverse proxies allowed to set X-Forwarded-* (CIDR list) ──
+      # Default trusts loopback + Docker bridge (172.16.0.0/12), which covers
+      # a proxy on the same host, e.g. Synology DSM reverse proxy.
+      - UpdateHub__TrustedProxies=${UPDATEHUB_TRUSTED_PROXIES:-}
+
       # ── Optional: webhook on publish ────────────────────────────────────────
       - UpdateHub__WebhookUrl=
 

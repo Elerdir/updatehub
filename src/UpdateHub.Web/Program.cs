@@ -4,7 +4,6 @@ using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Diagnostics.HealthChecks;
-using Microsoft.AspNetCore.HttpOverrides;
 using Microsoft.AspNetCore.Localization;
 using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Extensions.Diagnostics.HealthChecks;
@@ -48,12 +47,7 @@ if (!builder.Environment.IsEnvironment("Testing"))
         .Enrich.FromLogContext());
 }
 
-builder.Services.Configure<ForwardedHeadersOptions>(options =>
-{
-    options.ForwardedHeaders = ForwardedHeaders.XForwardedFor | ForwardedHeaders.XForwardedProto;
-    options.KnownIPNetworks.Clear();
-    options.KnownProxies.Clear();
-});
+builder.Services.AddReverseProxySupport(builder.Configuration);
 
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
@@ -139,14 +133,16 @@ if (!app.Environment.IsEnvironment("Testing"))
     await BootstrapSeeder.SeedAdminAsync(app.Services);
 }
 
+// Must run first: HSTS, HTTPS redirection, rate limiting and IP blocks all
+// read the scheme / client IP that the reverse proxy forwards.
+app.UseForwardedHeaders();
+
 if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/Error");
     app.UseHsts();
     app.UseHttpsRedirection();
 }
-
-app.UseForwardedHeaders();
 
 app.UseRequestLocalization();
 // MapStaticAssets is the .NET 9+ replacement for UseStaticFiles. It serves
