@@ -14,6 +14,7 @@ Every app you publish through UpdateHub gets:
 | `GET /api/apps/{slug}/electron/latest.yml` (and `latest-mac.yml`, `latest-linux.yml`) | electron-updater feed | YAML |
 | `GET /api/apps/{slug}/sparkle/appcast.xml` | Sparkle / WinSparkle feed | XML (RSS) |
 | `GET /api/apps/{slug}/velopack/releases.json` | Velopack / next-gen Squirrel feed | JSON |
+| `GET /api/apps/{slug}/latest?channel=…` | Newest release with every installer — for download pages / websites | JSON |
 | `GET /api/downloads/{artifactId}` | Stream the installer bytes | binary |
 
 Pick whichever your framework already speaks; UpdateHub serves the same
