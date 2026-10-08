@@ -107,6 +107,52 @@ public class AdminServiceTests
 
     // ── PublishReleaseAsync ───────────────────────────────────────────────────
 
+    // ── UpdateReleaseNotesAsync ───────────────────────────────────────────────
+
+    [Fact]
+    public async Task UpdateReleaseNotesAsync_TrimsAndSaves()
+    {
+        var release = new Release { Version = "1.0.1", ReleaseNotes = "old" };
+        _releases.GetByIdAsync(release.Id).Returns(release);
+
+        await _sut.UpdateReleaseNotesAsync(release.Id, "  ### Fixed\n- crash  ");
+
+        Assert.Equal("### Fixed\n- crash", release.ReleaseNotes);
+        await _releases.Received(1).UpdateAsync(release);
+        await _auditRepo.Received(1).LogAsync(Arg.Is<AuditEntry>(e => e.Action == "UpdateReleaseNotes"));
+    }
+
+    [Fact]
+    public async Task UpdateReleaseNotesAsync_WhitespaceClearsNotes()
+    {
+        var release = new Release { Version = "1.0.1", ReleaseNotes = "old" };
+        _releases.GetByIdAsync(release.Id).Returns(release);
+
+        await _sut.UpdateReleaseNotesAsync(release.Id, "   ");
+
+        Assert.Null(release.ReleaseNotes);
+    }
+
+    [Fact]
+    public async Task UpdateReleaseNotesAsync_UnchangedSkipsSave()
+    {
+        var release = new Release { Version = "1.0.1", ReleaseNotes = "same" };
+        _releases.GetByIdAsync(release.Id).Returns(release);
+
+        await _sut.UpdateReleaseNotesAsync(release.Id, "same");
+
+        await _releases.DidNotReceive().UpdateAsync(Arg.Any<Release>());
+    }
+
+    [Fact]
+    public async Task UpdateReleaseNotesAsync_ThrowsWhenReleaseNotFound()
+    {
+        _releases.GetByIdAsync(Arg.Any<Guid>()).Returns((Release?)null);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(
+            () => _sut.UpdateReleaseNotesAsync(Guid.NewGuid(), "x"));
+    }
+
     [Fact]
     public async Task PublishReleaseAsync_SetsStatusAndPublishedAt()
     {
