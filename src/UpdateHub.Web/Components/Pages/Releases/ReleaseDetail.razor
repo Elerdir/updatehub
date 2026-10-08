@@ -67,13 +67,47 @@ else
     </div>
     </AuthorizeView>
 
-    @if (!string.IsNullOrWhiteSpace(release.ReleaseNotes))
-    {
-        <div class="release-notes card">
-            <div class="release-notes-title">@L["releases.notes"]</div>
-            <MarkdownView Content="@release.ReleaseNotes" />
-        </div>
-    }
+    <AuthorizeView Roles="Admin,Manager">
+        <Authorized>
+            <div class="release-notes card">
+                <div style="display:flex;justify-content:space-between;align-items:center;gap:12px;">
+                    <div class="release-notes-title">@L["releases.notes"]</div>
+                    @if (!editingNotes)
+                    {
+                        <button class="btn-ghost btn-sm" @onclick="StartEditNotes">@L["common.edit"]</button>
+                    }
+                </div>
+                @if (editingNotes)
+                {
+                    <textarea @bind="notesInput" rows="10" style="width:100%;font-family:monospace;font-size:13px;"></textarea>
+                    <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:8px;">
+                        <span style="font-size:13px;color:var(--muted);">@L["releases.notes.hint"]</span>
+                        <div style="display:flex;gap:8px;">
+                            <button class="btn-primary btn-sm" @onclick="SaveNotes">@L["common.save"]</button>
+                            <button class="btn-ghost btn-sm" @onclick="() => editingNotes = false">@L["common.cancel"]</button>
+                        </div>
+                    </div>
+                }
+                else if (!string.IsNullOrWhiteSpace(release.ReleaseNotes))
+                {
+                    <MarkdownView Content="@release.ReleaseNotes" />
+                }
+                else
+                {
+                    <span style="font-size:13px;color:var(--muted);">@L["releases.notes.empty"]</span>
+                }
+            </div>
+        </Authorized>
+        <NotAuthorized>
+            @if (!string.IsNullOrWhiteSpace(release.ReleaseNotes))
+            {
+                <div class="release-notes card">
+                    <div class="release-notes-title">@L["releases.notes"]</div>
+                    <MarkdownView Content="@release.ReleaseNotes" />
+                </div>
+            }
+        </NotAuthorized>
+    </AuthorizeView>
 
     <div class="section-header">
         <h2>@L["releases.artifacts"]</h2>
@@ -200,6 +234,8 @@ else
     private bool confirmDelete;
     private bool editingMinFrom;
     private string? minFromInput;
+    private bool editingNotes;
+    private string? notesInput;
 
     protected override async Task OnParametersSetAsync() => await Load();
 
@@ -263,6 +299,20 @@ else
         if (release is null) return;
         await AdminSvc.SetMinFromVersionAsync(release.Id, minFromInput);
         editingMinFrom = false;
+        await Load();
+    }
+
+    private void StartEditNotes()
+    {
+        notesInput   = release?.ReleaseNotes;
+        editingNotes = true;
+    }
+
+    private async Task SaveNotes()
+    {
+        if (release is null) return;
+        await AdminSvc.UpdateReleaseNotesAsync(release.Id, notesInput);
+        editingNotes = false;
         await Load();
     }
 

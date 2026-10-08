@@ -4,6 +4,8 @@
 services:
   updatehub:
     image: ghcr.io/elerdir/updatehub:latest
+    # Každé sestavení projektu v Container Manageru stáhne nejnovější image.
+    pull_policy: always
     container_name: updatehub
     # Bound to loopback only: the outside world reaches it through the DSM
     # reverse proxy (HTTPS) and nothing in the LAN can talk to it directly

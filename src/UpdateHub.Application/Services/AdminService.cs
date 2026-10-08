@@ -91,6 +91,20 @@ public class AdminService(
             details: $"{r.Version} → {(normalized ?? "(none)")}");
     }
 
+    public async Task UpdateReleaseNotesAsync(Guid releaseId, string? notes)
+    {
+        RoleGuard.Require(currentUser, Admin, Manager);
+        var r = await releaseRepo.GetByIdAsync(releaseId)
+            ?? throw new InvalidOperationException("Release not found");
+        var normalized = string.IsNullOrWhiteSpace(notes) ? null : notes.Trim();
+        if (r.ReleaseNotes == normalized) return;
+        r.ReleaseNotes = normalized;
+        await releaseRepo.UpdateAsync(r);
+        await audit.LogAsync("UpdateReleaseNotes", entityType: "Release",
+            entityId: releaseId.ToString(),
+            details: r.Version);
+    }
+
     public async Task PublishReleaseAsync(Guid releaseId)
     {
         RoleGuard.Require(currentUser, Admin, Manager);
