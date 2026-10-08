@@ -131,6 +131,37 @@ $"""
             });
         }).RequireRateLimiting("public-api");
 
+        // ── Latest release (download pages) ────────────────────────────────
+        // Version, notes and every installer of the newest published release,
+        // so a website can render "download for Windows / macOS" buttons.
+        app.MapGet("/api/apps/{appSlug}/latest", async (
+            string appSlug,
+            [FromQuery] string? channel,
+            UpdateResolverService resolver) =>
+        {
+            var latest = await resolver.GetLatestReleaseAsync(appSlug, channel);
+            if (latest is null) return Results.NotFound();
+
+            return Results.Ok(new
+            {
+                slug          = latest.Slug,
+                name          = latest.Name,
+                version       = latest.Version,
+                channel       = latest.Channel,
+                published_at  = latest.PublishedAt,
+                release_notes = latest.ReleaseNotes,
+                artifacts     = latest.Artifacts.Select(a => new
+                {
+                    platform   = a.Platform,
+                    arch       = a.Architecture,
+                    file_name  = a.FileName,
+                    size_bytes = a.SizeBytes,
+                    sha256     = a.Sha256,
+                    url        = a.Url,
+                }),
+            });
+        }).RequireRateLimiting("public-api");
+
         app.MapGet("/api/apps/{appSlug}/update", async (
             string appSlug,
             [FromQuery] string? version,

@@ -118,6 +118,34 @@ public class PublicEndpointsTests : IClassFixture<TestWebApplicationFactory>
         Assert.True(body.Platforms.ContainsKey("windows-x86_64"));
     }
 
+    // ── /api/apps/{slug}/latest ──────────────────────────────────────────────
+
+    [Fact]
+    public async Task LatestRelease_Returns404_ForUnknownApp()
+    {
+        var response = await _client.GetAsync("/api/apps/no-such-app/latest");
+
+        Assert.Equal(HttpStatusCode.NotFound, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task LatestRelease_ReturnsVersionAndArtifacts()
+    {
+        await SeedPublishedRelease("latest-app", "4.1.0");
+
+        var response = await _client.GetAsync("/api/apps/latest-app/latest?channel=stable");
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var body = await response.Content.ReadFromJsonAsync<LatestReleaseResponse>();
+        Assert.Equal("latest-app", body!.Slug);
+        Assert.Equal("4.1.0", body.Version);
+        var artifact = Assert.Single(body.Artifacts);
+        Assert.Equal("windows", artifact.Platform);
+        Assert.Equal("x64", artifact.Arch);
+        Assert.Equal("setup.exe", artifact.FileName);
+        Assert.Contains("/api/downloads/", artifact.Url);
+    }
+
     // ── /api/downloads/{id} ───────────────────────────────────────────────────
 
     [Fact]
@@ -214,6 +242,17 @@ public class PublicEndpointsTests : IClassFixture<TestWebApplicationFactory>
         [property: JsonPropertyName("sha256")]        string? Sha256,
         [property: JsonPropertyName("is_mandatory")]  bool IsMandatory,
         [property: JsonPropertyName("channel")]       string Channel);
+
+    private record LatestReleaseResponse(
+        [property: JsonPropertyName("slug")]      string Slug,
+        [property: JsonPropertyName("version")]   string Version,
+        [property: JsonPropertyName("artifacts")] List<LatestArtifactResponse> Artifacts);
+
+    private record LatestArtifactResponse(
+        [property: JsonPropertyName("platform")]  string Platform,
+        [property: JsonPropertyName("arch")]      string Arch,
+        [property: JsonPropertyName("file_name")] string FileName,
+        [property: JsonPropertyName("url")]       string Url);
 
     private record TauriManifestResponse(
         [property: JsonPropertyName("version")]   string Version,
