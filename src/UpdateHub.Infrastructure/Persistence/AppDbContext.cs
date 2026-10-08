@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 using UpdateHub.Domain.Entities;
 
 namespace UpdateHub.Infrastructure.Persistence;
@@ -15,6 +16,20 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<PasswordResetToken>  PasswordResetTokens  => Set<PasswordResetToken>();
     public DbSet<DownloadEvent>       DownloadEvents       => Set<DownloadEvent>();
     public DbSet<PersonalAccessToken> PersonalAccessTokens => Set<PersonalAccessToken>();
+
+    // SQLite has no timezone-aware type, so DateTimes come back as Kind=Unspecified
+    // and serialize without an offset ("2026-10-08T08:13:18"). Tauri's updater
+    // rejects such a pub_date as invalid RFC 3339. Everything is written as UTC,
+    // so mark it as UTC on the way out.
+    protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
+    {
+        configurationBuilder.Properties<DateTime>().HaveConversion<UtcDateTimeConverter>();
+        configurationBuilder.Properties<DateTime?>().HaveConversion<UtcDateTimeConverter>();
+    }
+
+    private sealed class UtcDateTimeConverter() : ValueConverter<DateTime, DateTime>(
+        v => v.Kind == DateTimeKind.Local ? v.ToUniversalTime() : v,
+        v => DateTime.SpecifyKind(v, DateTimeKind.Utc));
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

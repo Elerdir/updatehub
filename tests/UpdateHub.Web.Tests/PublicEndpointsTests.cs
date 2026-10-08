@@ -118,6 +118,19 @@ public class PublicEndpointsTests : IClassFixture<TestWebApplicationFactory>
         Assert.True(body.Platforms.ContainsKey("windows-x86_64"));
     }
 
+    [Fact]
+    public async Task TauriManifest_PubDate_IsRfc3339WithOffset_AfterSqliteRoundTrip()
+    {
+        // Tauri's updater rejects the whole manifest when pub_date has no
+        // offset — and SQLite drops DateTimeKind, so this must survive a DB read.
+        await SeedPublishedRelease("tauri-date-app", "3.1.0", signature: "dW50cnVzdGVk");
+
+        var json = await _client.GetFromJsonAsync<System.Text.Json.JsonElement>("/api/apps/tauri-date-app/tauri/latest.json");
+        var pubDate = json.GetProperty("pub_date").GetString();
+
+        Assert.Matches(@"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})$", pubDate);
+    }
+
     // ── /api/downloads/{id} ───────────────────────────────────────────────────
 
     [Fact]
