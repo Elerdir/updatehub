@@ -38,13 +38,25 @@ public class UpdateResolverService(
         var release = await releases.GetLatestPublishedAsync(appSlug, ParseChannel(channel));
         if (release is null) return null;
 
-        var platforms = new Dictionary<string, TauriPlatformEntry>();
-        foreach (var a in release.Artifacts)
-        {
-            var key = TauriPlatformKey(a.Platform, a.Architecture);
-            if (key is not null && a.Signature is not null)
-                platforms[key] = new TauriPlatformEntry(a.Signature, DownloadUrl(a.Id));
-        }
+        // Tauri CI typically uploads several signed bundles per platform
+        // (NSIS + MSI on Windows). Pick deterministically, preferring the
+        // format the updater is meant to consume, so the manifest doesn't flip
+        // between installers depending on DB row order.
+        var platforms = release.Artifacts
+            .Where(a => a.Signature is not null)
+            .Select(a => (Key: TauriPlatformKey(a.Platform, a.Architecture), Artifact: a))
+            .Where(x => x.Key is not null)
+            .GroupBy(x => x.Key!)
+            .ToDictionary(
+                g => g.Key,
+                g =>
+                {
+                    var best = g.Select(x => x.Artifact)
+                        .OrderBy(a => TauriBundlePreference(a.FileName))
+                        .ThenByDescending(a => a.CreatedAt)
+                        .First();
+                    return new TauriPlatformEntry(best.Signature!, DownloadUrl(best.Id));
+                });
 
         return new TauriManifest(
             release.Version,
@@ -174,6 +186,17 @@ public class UpdateResolverService(
             ("linux",   "arm64") => "linux-aarch64",
             _ => null
         };
+
+    // Lower = preferred. NSIS (.exe) first on Windows: the default Tauri
+    // per-user install; an MSI update over an NSIS install would leave two
+    // installations side by side.
+    private static int TauriBundlePreference(string fileName)
+    {
+        var f = fileName.ToLowerInvariant();
+        if (f.EndsWith(".exe") || f.EndsWith(".app.tar.gz") || f.EndsWith(".appimage")) return 0;
+        if (f.EndsWith(".msi")) return 1;
+        return 2;
+    }
 
     private static bool IsNewer(string current, string latest)
     {
