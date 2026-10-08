@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Mvc;
 using UpdateHub.Application.Interfaces;
 using UpdateHub.Application.Services;
 using UpdateHub.Domain.Enums;
@@ -6,8 +7,15 @@ namespace UpdateHub.Web.Endpoints;
 
 public static class CiEndpoints
 {
+    public const string MaxUploadBytesKey = "UpdateHub:MaxUploadBytes";
+    public const long DefaultMaxUploadBytes = 2L * 1024 * 1024 * 1024;
+
     public static void MapCiEndpoints(this WebApplication app)
     {
+        // Kestrel caps request bodies at 30 MB and multipart forms at 128 MB by
+        // default — far below a typical installer. Raised for this endpoint only.
+        var maxUploadBytes = app.Configuration.GetValue(MaxUploadBytesKey, DefaultMaxUploadBytes);
+
         app.MapPost("/api/ci/apps/{appSlug}/releases", async (
             string appSlug,
             HttpRequest request,
@@ -91,6 +99,9 @@ public static class CiEndpoints
                 sha256      = artifact.Sha256,
                 message = "Artifact uploaded. Release is in Draft — publish it via admin UI."
             });
-        }).DisableAntiforgery();
+        })
+        .DisableAntiforgery()
+        .WithMetadata(new RequestSizeLimitAttribute(maxUploadBytes))
+        .WithFormOptions(multipartBodyLengthLimit: maxUploadBytes);
     }
 }

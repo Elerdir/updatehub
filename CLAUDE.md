@@ -56,6 +56,7 @@ Dev hash in `appsettings.Development.json` is for password `admin123`.
 - `UpdateHub:CiToken` — CI upload secret
 - `UpdateHub:Admin:Username` / `UpdateHub:Admin:PasswordHash` — bcrypt hash
 - `UpdateHub:TrustedProxies` — CIDR list of reverse proxies trusted for X-Forwarded-* (default loopback + Docker bridge)
+- `UpdateHub:MaxUploadBytes` — max CI upload size (default 2 GB; Kestrel default would be 30 MB)
 
 ## Adding new storage backend
 

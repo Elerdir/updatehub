@@ -258,6 +258,44 @@ public class UpdateResolverServiceTests
         Assert.True(manifest!.Platforms.ContainsKey(expectedKey));
     }
 
+    [Fact]
+    public async Task GetTauriManifestAsync_PrefersNsisOverMsi_RegardlessOfOrder()
+    {
+        var nsis = new Artifact { Platform = "windows", Architecture = "x64", FileName = "App_1.1.0_x64-setup.exe", Signature = "nsis-sig", CreatedAt = DateTime.UtcNow.AddMinutes(-5) };
+        var msi  = new Artifact { Platform = "windows", Architecture = "x64", FileName = "App_1.1.0_x64_en-US.msi", Signature = "msi-sig", CreatedAt = DateTime.UtcNow };
+        _releases.GetLatestPublishedAsync("my-app", ReleaseChannel.Stable).Returns(PublishedRelease("1.1.0", nsis, msi));
+
+        var manifest = await _sut.GetTauriManifestAsync("my-app", null);
+
+        var entry = manifest!.Platforms["windows-x86_64"];
+        Assert.Equal("nsis-sig", entry.Signature);
+        Assert.Equal($"{BaseUrl}/api/downloads/{nsis.Id}", entry.Url);
+    }
+
+    [Fact]
+    public async Task GetTauriManifestAsync_FallsBackToMsi_WhenOnlyMsiIsSigned()
+    {
+        var nsis = new Artifact { Platform = "windows", Architecture = "x64", FileName = "App-setup.exe", Signature = null };
+        var msi  = new Artifact { Platform = "windows", Architecture = "x64", FileName = "App.msi", Signature = "msi-sig" };
+        _releases.GetLatestPublishedAsync("my-app", ReleaseChannel.Stable).Returns(PublishedRelease("1.1.0", nsis, msi));
+
+        var manifest = await _sut.GetTauriManifestAsync("my-app", null);
+
+        Assert.Equal("msi-sig", manifest!.Platforms["windows-x86_64"].Signature);
+    }
+
+    [Fact]
+    public async Task GetTauriManifestAsync_SameFormat_PicksNewestUpload()
+    {
+        var older = new Artifact { Platform = "macos", Architecture = "arm64", FileName = "App.app.tar.gz", Signature = "old", CreatedAt = DateTime.UtcNow.AddHours(-1) };
+        var newer = new Artifact { Platform = "macos", Architecture = "arm64", FileName = "App.app.tar.gz", Signature = "new", CreatedAt = DateTime.UtcNow };
+        _releases.GetLatestPublishedAsync("my-app", ReleaseChannel.Stable).Returns(PublishedRelease("1.1.0", newer, older));
+
+        var manifest = await _sut.GetTauriManifestAsync("my-app", null);
+
+        Assert.Equal("new", manifest!.Platforms["darwin-aarch64"].Signature);
+    }
+
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private static Release PublishedRelease(string version, params Artifact[] artifacts)

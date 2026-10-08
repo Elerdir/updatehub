@@ -75,6 +75,7 @@ Every setting comes from either an environment variable or an
 | `UpdateHub__Smtp__Host` / `Port` / `From` / `Username` / `Password` / `To` | Initial SMTP credentials (override via /settings at runtime) | empty |
 | `UpdateHub__Admin__Username` / `PasswordHash` | Bootstrap admin credentials | `admin` / *(no hash)* |
 | `UpdateHub__TrustedProxies` | Comma-separated CIDR list of reverse proxies whose `X-Forwarded-For` / `-Proto` headers are trusted. Requests from anywhere else can't spoof their IP. | `127.0.0.0/8,::1/128,172.16.0.0/12` (loopback + Docker bridge) |
+| `UpdateHub__MaxUploadBytes` | Max size of a single CI upload (`POST /api/ci/...`). Kestrel's own default would cap it at 30 MB. | `2147483648` (2 GB) |
 
 The official Docker image sets `UpdateHub__DatabasePath=/app/data/updatehub.db`
 and `UpdateHub__StoragePath=/app/data/artifacts` so a single `./data:/app/data`
