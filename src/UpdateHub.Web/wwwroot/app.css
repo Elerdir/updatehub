@@ -76,6 +76,9 @@ small { font-size: 12px; }
     z-index: 10;
 }
 .brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
     padding: 0 20px 28px;
     font-size: 18px;
     font-weight: 700;
@@ -341,7 +344,9 @@ input:focus, select:focus, textarea:focus {
     padding: 40px;
     width: 380px;
 }
-.login-brand { text-align: center; font-size: 22px; font-weight: 700; color: var(--primary); margin-bottom: 32px; letter-spacing: -0.02em; }
+.login-brand { display: flex; align-items: center; justify-content: center; gap: 12px; font-size: 22px; font-weight: 700; color: var(--primary); margin-bottom: 32px; letter-spacing: -0.02em; }
+.brand-icon { width: 28px; height: 28px; flex-shrink: 0; }
+.login-brand .brand-icon { width: 36px; height: 36px; }
 
 /* ===== API info ===== */
 .api-info { margin-bottom: 24px; }
