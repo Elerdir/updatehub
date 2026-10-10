@@ -1,0 +1,30 @@
+# UpdateHub na domacim serveru (Ubuntu NUC, 10.0.1.44).
+# HTTPS a domenu dal resi DSM reverzni proxy na NASu (10.0.1.22): https://updatehub.niderle.cz -> NUC:8081.
+# Postup migrace z NASu: deploy/nuc/README.md.
+name: updatehub
+
+services:
+  updatehub:
+    image: ghcr.io/elerdir/updatehub:latest
+    pull_policy: always
+    container_name: updatehub
+    # Jen na LAN IP serveru (ne na vsechna rozhrani). Pristup zvenku vede pres DSM proxy.
+    ports:
+      - "${BIND_IP:-10.0.1.44}:8081:8080"
+    volumes:
+      - ./data:/app/data     # SQLite DB + artefakty + dp-keys - zalohuje restic
+      - ./logs:/app/logs
+    env_file: .env
+    environment:
+      - TZ=Europe/Prague
+      # DSM proxy (NAS) se v kontejneru ukaze s adresou 10.0.1.22. Jen jemu se veri X-Forwarded-*.
+      # Bez toho by UpdateHub videl http misto https (spatne odkazy ke stazeni, Secure cookie)
+      # a vsichni klienti by sdileli jednu IP v rate limitech.
+      - UpdateHub__TrustedProxies=127.0.0.0/8,::1/128,172.16.0.0/12,${NAS_IP:-10.0.1.22}/32
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 30s
+      retries: 3

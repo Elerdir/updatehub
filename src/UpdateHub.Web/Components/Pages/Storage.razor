@@ -1,0 +1,146 @@
+@page "/storage"
+@attribute [Authorize(Roles = "Admin")]
+@rendermode InteractiveServer
+@inject AdminService AdminSvc
+@inject IArtifactStorage StorageSvc
+@inject UpdateHub.Web.Localization.Translator L
+
+<PageTitle>@L["storage.title"] — UpdateHub</PageTitle>
+
+<div class="page-header">
+    <h1>@L["storage.title"]</h1>
+</div>
+
+@if (_loading)
+{
+    <p class="loading">@L["common.loading"]</p>
+}
+else
+{
+    <div class="stats" style="margin-bottom:24px;">
+        <div class="stat-card">
+            <span class="stat-value">@FormatSize(_diskTotal)</span>
+            <span class="stat-label">@L["storage.totalOnDisk"]</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-value">@FormatSize(_dbTotal)</span>
+            <span class="stat-label">@L["storage.totalInDb"]</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-value">@_perApp.Sum(a => a.Artifacts)</span>
+            <span class="stat-label">@L["storage.artifactCount"]</span>
+        </div>
+    </div>
+
+    <div class="section-header">
+        <h2>@L["storage.byApp"]</h2>
+    </div>
+
+    @if (!_perApp.Any())
+    {
+        <div class="empty-state"><p>@L["storage.empty"]</p></div>
+    }
+    else
+    {
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>@L["dashboard.col.name"]</th>
+                    <th>@L["apps.slug"]</th>
+                    <th>@L["releases.artifacts"]</th>
+                    <th>@L["storage.size"]</th>
+                    <th>@L["storage.share"]</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var a in _perApp)
+                {
+                    var pct = _dbTotal == 0 ? 0 : (a.Bytes * 100.0 / _dbTotal);
+                    <tr>
+                        <td><strong>@a.Name</strong></td>
+                        <td><code>@a.Slug</code></td>
+                        <td>@a.Artifacts</td>
+                        <td>@FormatSize(a.Bytes)</td>
+                        <td>
+                            <div style="display:flex;align-items:center;gap:8px;">
+                                <div style="flex:1;height:6px;background:var(--surface2);border-radius:3px;overflow:hidden;">
+                                    <div style="width:@(pct.ToString("F1", System.Globalization.CultureInfo.InvariantCulture))%;height:100%;background:var(--primary);"></div>
+                                </div>
+                                <span style="font-size:11px;color:var(--muted);min-width:42px;text-align:right;">@pct.ToString("F1")%</span>
+                            </div>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+
+    <div class="section-header" style="margin-top:24px;">
+        <h2>@L["storage.cleanup"]</h2>
+    </div>
+    <div class="card">
+        <p style="color:var(--muted);font-size:13px;margin-bottom:16px;">@L["storage.cleanup.hint"]</p>
+        <div class="form-row" style="grid-template-columns: auto 1fr; align-items: end; gap:12px;">
+            <div class="field" style="margin-bottom:0;">
+                <label>@L["storage.cleanup.olderThan"]</label>
+                <select @bind="_cleanupDays" style="width:140px;">
+                    <option value="30">30 @L["storage.days"]</option>
+                    <option value="60">60 @L["storage.days"]</option>
+                    <option value="90">90 @L["storage.days"]</option>
+                    <option value="180">180 @L["storage.days"]</option>
+                    <option value="365">365 @L["storage.days"]</option>
+                </select>
+            </div>
+            <div style="display:flex;align-items:center;gap:8px;">
+                <button class="btn-danger-outline" @onclick="RunCleanup" disabled="@_cleaning">
+                    @(_cleaning ? L["common.loading"] : L["storage.cleanup.run"])
+                </button>
+                @if (_cleanupMsg is not null) { <span class="info" style="margin:0;">@_cleanupMsg</span> }
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private bool _loading = true;
+    private bool _cleaning;
+    private long _diskTotal;
+    private long _dbTotal;
+    private int  _cleanupDays = 90;
+    private string? _cleanupMsg;
+    private List<(string Slug, string Name, long Bytes, int Artifacts)> _perApp = [];
+
+    protected override async Task OnInitializedAsync() => await Reload();
+
+    private async Task Reload()
+    {
+        _loading   = true;
+        _perApp    = await AdminSvc.GetStoragePerAppAsync();
+        _dbTotal   = _perApp.Sum(a => a.Bytes);
+        _diskTotal = StorageSvc.GetTotalBytes();
+        _loading   = false;
+    }
+
+    private async Task RunCleanup()
+    {
+        _cleaning   = true;
+        _cleanupMsg = null;
+        try
+        {
+            var (count, freed) = await AdminSvc.CleanupArchivedAsync(_cleanupDays);
+            _cleanupMsg = $"{count} artifacts removed, {FormatSize(freed)} freed.";
+            await Reload();
+        }
+        catch (Exception ex) { _cleanupMsg = ex.Message; }
+        finally { _cleaning = false; }
+    }
+
+    private static string FormatSize(long b) =>
+        b switch
+        {
+            < 1024              => $"{b} B",
+            < 1024L * 1024      => $"{b / 1024.0:F1} KB",
+            < 1024L * 1024 * 1024 => $"{b / (1024.0 * 1024):F1} MB",
+            _                   => $"{b / (1024.0 * 1024 * 1024):F2} GB"
+        };
+}

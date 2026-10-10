@@ -1,0 +1,11 @@
+@inject UpdateHub.Web.Localization.Translator L
+
+@* Pure-HTML select — theme.js (loaded in <head>) wires the change event
+   and seeds the initial value from localStorage. No Blazor state, no JS
+   interop, no render-mode dance — keeps it bulletproof regardless of
+   InteractiveServer hydration timing. *@
+<select class="pref-select js-theme-select">
+    <option value="auto">🖥️ @L["nav.theme.auto"]</option>
+    <option value="light">☀️ @L["nav.theme.light"]</option>
+    <option value="dark">🌙 @L["nav.theme.dark"]</option>
+</select>

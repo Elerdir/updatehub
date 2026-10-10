@@ -1,0 +1,26 @@
+@using System.Globalization
+<!DOCTYPE html>
+<html lang="@CultureInfo.CurrentUICulture.TwoLetterISOLanguageName">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    @* <base href> is required so relative URLs (app.css, theme.js,
+       _framework/blazor.web.js) resolve against the site root no matter
+       how deep the current page is — without it /account/change-password
+       resolves them to /account/app.css and the page renders unstyled. *@
+    <base href="/" />
+    <title>UpdateHub</title>
+    <link rel="icon" href="favicon.svg" type="image/svg+xml" />
+    <link rel="icon" href="favicon.ico" sizes="any" />
+    <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+    <meta name="theme-color" content="#6366f1" />
+    <link rel="stylesheet" href="app.css" />
+    <script src="theme.js"></script>
+    <script src="dropzone.js" defer></script>
+    <HeadOutlet />
+</head>
+<body>
+    <Routes />
+    <script src="_framework/blazor.web.js"></script>
+</body>
+</html>

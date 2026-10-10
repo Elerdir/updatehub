@@ -1,0 +1,27 @@
+# UpdateHub on Synology (Container Manager → Project).
+# Copy this folder to /volume1/docker/updatehub together with the .env file
+# produced by new-env.ps1, then create a project pointing at that folder.
+services:
+  updatehub:
+    image: ghcr.io/elerdir/updatehub:latest
+    # Každé sestavení projektu v Container Manageru stáhne nejnovější image.
+    pull_policy: always
+    container_name: updatehub
+    # Bound to loopback only: the outside world reaches it through the DSM
+    # reverse proxy (HTTPS) and nothing in the LAN can talk to it directly
+    # and spoof X-Forwarded-For.
+    ports:
+      - "127.0.0.1:8081:8080"
+    volumes:
+      - ./data:/app/data     # SQLite DB + artifacts + dp-keys — back this up
+      - ./logs:/app/logs
+    env_file: .env
+    environment:
+      - TZ=Europe/Prague
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 5s
+      start_period: 30s
+      retries: 3

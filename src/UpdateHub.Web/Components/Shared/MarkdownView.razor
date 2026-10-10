@@ -1,0 +1,25 @@
+@using Markdig
+@using Microsoft.AspNetCore.Components
+
+<div class="markdown-body">@((MarkupString)_html)</div>
+
+@code {
+    [Parameter, EditorRequired] public string? Content { get; set; }
+
+    private string _html = "";
+
+    protected override void OnParametersSet()
+    {
+        _html = string.IsNullOrWhiteSpace(Content)
+            ? ""
+            : Markdown.ToHtml(Content, Pipeline);
+    }
+
+    // DisableHtml() strips raw HTML so release notes (which can be set via the
+    // token-authenticated CI endpoint) cannot inject <script> into the admin UI.
+    private static readonly MarkdownPipeline Pipeline = new MarkdownPipelineBuilder()
+        .UseAutoLinks()
+        .UseEmphasisExtras()
+        .DisableHtml()
+        .Build();
+}
