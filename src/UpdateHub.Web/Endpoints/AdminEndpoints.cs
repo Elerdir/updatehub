@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.IO.Compression;
 using System.Text;
+using UpdateHub.Application.Interfaces;
 using UpdateHub.Application.Services;
 
 namespace UpdateHub.Web.Endpoints;
@@ -33,6 +34,22 @@ public static class AdminEndpoints
             ctx.Response.Headers["Content-Disposition"] =
                 $"attachment; filename=\"updatehub-audit-{DateTime.UtcNow:yyyyMMdd-HHmmss}.csv\"";
             return Results.Text(sb.ToString(), "text/csv; charset=utf-8");
+        }).RequireAuthorization();
+
+        // Stažení instalátoru libovolné verze z adminu. Na rozdíl od veřejného
+        // /api/downloads se nepočítá do statistik stahování.
+        app.MapGet("/admin/artifacts/{artifactId:guid}/download", async (
+            Guid artifactId, IArtifactRepository artifacts, IArtifactStorage storage) =>
+        {
+            var artifact = await artifacts.GetByIdAsync(artifactId);
+            if (artifact is null) return Results.NotFound();
+
+            Stream stream;
+            try { stream = storage.OpenRead(artifact.StoredPath); }
+            catch (Exception ex) when (ex is FileNotFoundException or DirectoryNotFoundException) { return Results.NotFound(); }
+
+            return Results.File(stream, "application/octet-stream", Path.GetFileName(artifact.FileName),
+                enableRangeProcessing: true);
         }).RequireAuthorization();
 
         app.MapGet("/admin/backup.zip", (HttpContext ctx, IConfiguration cfg, AuditService audit) =>
