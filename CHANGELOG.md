@@ -9,6 +9,13 @@ All notable changes to UpdateHub are documented here.
   CI runs on Forgejo Actions (`.forgejo/workflows/ci.yml`); the image is pushed to the Forgejo registry
   `git.niderle.cz/elerdir/updatehub` (linux/amd64 only) instead of GHCR.
 
+### Security
+- Dependencies aligned with .NET 10: EF Core / Microsoft.Extensions / DataProtection 9.0.5 → 10.0.13,
+  `Microsoft.AspNetCore.OpenApi` and `Mvc.Testing` from 10.0 preview to 10.0.13, MailKit 4.11 → 4.18.1.
+  Fixes NuGet audit findings (high): `SQLitePCLRaw.lib.e_sqlite3` (GHSA-2m69-gcr7-jv3q),
+  `Microsoft.OpenApi` preview (GHSA-v5pm-xwqc-g5wc), `System.Security.Cryptography.Pkcs` (GHSA-846f-f764-76mx,
+  pinned 10.0.13) and `System.Security.Cryptography.Xml` (pinned 10.0.13).
+
 ## [1.1.0] — 2026-05-14
 
 ### Added
