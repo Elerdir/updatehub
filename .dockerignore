@@ -17,6 +17,7 @@ scripts/
 
 # CI/CD config not needed in image
 .github/
+.forgejo/
 
 # Misc
 *.md

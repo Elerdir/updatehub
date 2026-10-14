@@ -3,7 +3,7 @@
 # produced by new-env.ps1, then create a project pointing at that folder.
 services:
   updatehub:
-    image: ghcr.io/elerdir/updatehub:latest
+    image: git.niderle.cz/elerdir/updatehub:latest
     # Každé sestavení projektu v Container Manageru stáhne nejnovější image.
     pull_policy: always
     container_name: updatehub

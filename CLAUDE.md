@@ -70,6 +70,13 @@ Dev hash in `appsettings.Development.json` is for password `admin123`.
 Uses `EnsureCreated()` — schema is created once. To change schema:
 delete the `.db` file and restart. Add EF Core migrations if you need upgrade paths.
 
+## Git, CI, deploy
+
+- Repo lives on Forgejo (`https://git.niderle.cz/elerdir/updatehub`), GitHub is only a push mirror.
+- CI: Forgejo Actions (`.forgejo/workflows/ci.yml`, runner on the NUC) — tests on PR; push to `main`
+  builds `git.niderle.cz/elerdir/updatehub:latest`, tag `vX.Y.Z` builds `:X.Y.Z`.
+- `main` is protected: changes only via PR after green CI. Deploy on the NUC: `deploy/nuc/README.md`.
+
 ## Conventions
 
 - Blazor pages `@rendermode InteractiveServer`
