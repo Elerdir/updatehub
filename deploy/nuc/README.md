@@ -19,7 +19,7 @@ Na NASu zjisti velikost dat (určí délku přenosu):
 sudo du -sh /volume1/docker/updatehub/data
 ```
 
-Na NUC musí být Docker, přihlášení do GHCR (`docker login ghcr.io`) a dost místa (`df -h /`).
+Na NUC musí být Docker, přihlášení do registru Forgejo (`docker login git.niderle.cz`, token jen pro čtení balíčků) a dost místa (`df -h /`).
 
 Z Windows (samostatné PowerShell okno, ne SSH):
 

@@ -10,7 +10,7 @@ The supported deployment is the official Docker image.
 # docker-compose.yml — minimal example
 services:
   updatehub:
-    image: ghcr.io/elerdir/updatehub:latest
+    image: git.niderle.cz/elerdir/updatehub:latest
     ports:
       - "8081:8080"
     volumes:
@@ -213,7 +213,7 @@ Take a backup beforehand (Settings → Download backup) if the
 migration list contains anything you don't recognise.
 
 The `latest` tag tracks `main`. For predictable upgrades pin to a
-specific tag (`ghcr.io/elerdir/updatehub:1.1.0` etc.) and bump it
+specific tag (`git.niderle.cz/elerdir/updatehub:1.1.0` etc.) and bump it
 deliberately.
 
 ## 9. Health monitoring
