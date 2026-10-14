@@ -5,7 +5,7 @@ name: updatehub
 
 services:
   updatehub:
-    image: ghcr.io/elerdir/updatehub:latest
+    image: git.niderle.cz/elerdir/updatehub:latest
     pull_policy: always
     container_name: updatehub
     # Jen na LAN IP serveru (ne na vsechna rozhrani). Pristup zvenku vede pres DSM proxy.

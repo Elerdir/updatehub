@@ -2,6 +2,13 @@
 
 All notable changes to UpdateHub are documented here.
 
+## [Unreleased]
+
+### Changed
+- Repository moved to self-hosted Forgejo (`git.niderle.cz/elerdir/updatehub`), GitHub is a backup mirror only.
+  CI runs on Forgejo Actions (`.forgejo/workflows/ci.yml`); the image is pushed to the Forgejo registry
+  `git.niderle.cz/elerdir/updatehub` (linux/amd64 only) instead of GHCR.
+
 ## [1.1.0] — 2026-05-14
 
 ### Added

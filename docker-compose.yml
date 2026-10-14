@@ -1,6 +1,6 @@
 services:
   updatehub:
-    image: ghcr.io/elerdir/updatehub:latest   # use pre-built image from GHCR
+    image: git.niderle.cz/elerdir/updatehub:latest   # pre-built image from the Forgejo registry
     # build: .                                 # or build locally
     ports:
       - "8081:8080"
